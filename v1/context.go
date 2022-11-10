@@ -1,3 +1,24 @@
+// Copyright (c) 2022 miche.io
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+//
+// SPDX-License-Identifier: MIT
+
 package mason
 
 import (
@@ -33,7 +54,7 @@ type (
 	}
 )
 
-// NewContext creates a new Context with unloaded Module(s).
+// NewContext creates a new Context.
 func NewContext(opt ...Option) *Context {
 	c := new(Context)
 	c.Context = context.TODO()
@@ -46,7 +67,7 @@ func NewContext(opt ...Option) *Context {
 	return c
 }
 
-// Fx injects service dependencies into fx.New.
+// Fx injects service dependencies for fx.New.
 func (c *Context) Fx(opt ...fx.Option) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -73,6 +94,7 @@ func (c *Context) SetContext(ctx context.Context) {
 	c.Context = ctx
 }
 
+// Completed returns whether all Module(s) have been loaded.
 func (c *Context) Completed() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
