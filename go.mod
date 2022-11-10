@@ -2,6 +2,11 @@ module github.com/pedregon/mason
 
 go 1.19
 
+retract (
+	v1.0.0 // Published accidentally
+	v1.0.1 // Contains retractions only
+)
+
 require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
