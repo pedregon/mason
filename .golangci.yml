@@ -1,0 +1,15 @@
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - typecheck
+    - godot
+    - gofmt
+    - bodyclose
+    - exportloopref
+    - goimports
+    - gosec
