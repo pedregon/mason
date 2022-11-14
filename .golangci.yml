@@ -11,5 +11,4 @@ linters:
     - gofmt
     - bodyclose
     - exportloopref
-    - goimports
     - gosec

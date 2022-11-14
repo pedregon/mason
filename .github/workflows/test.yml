@@ -17,6 +17,6 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
       - name: Install dependencies
-        run: go get .
+        run: go mod tidy
       - name: Test
         run: go test -v -cover -timeout=30s ./...
