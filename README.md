@@ -16,7 +16,7 @@ For discussions, submit an [issue](https://github.com/pedregon/mason/issues). Pl
 adhere to official [Go module versioning](https://go.dev/doc/modules/version-numbers) when 
 [publishing](https://go.dev/doc/modules/publishing). Notice the current 
 [retractions](https://go.dev/ref/mod#go-mod-file-retract) in the [go.mod](https://proxy.golang.org/).
-### v2
+### V2
 Why? Mason was developed to offer an alternative to the standard library, [`plugin`](https://pkg.go.dev/plugin),
 RPC solutions such as [`github.com/hashicorp/go-plugin`](https://github.com/hashicorp/go-plugin),
 and other network-based solutions. Possibly the most contentious aspect of
