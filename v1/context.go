@@ -114,6 +114,9 @@ func (c *Context) Load(info ...Info) (err error) {
 		c.mu.RUnlock()
 		if !exist {
 			err = ErrInvalidModule
+			if c.stack.Size() > 0 {
+				err = ErrMissingDependency
+			}
 			c.logger.Error("failed to load", i, err)
 			return
 		}

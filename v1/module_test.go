@@ -220,3 +220,23 @@ func TestFx(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestMissingDependency(t *testing.T) {
+	foo := &module{name: "foo", version: "1.0.0"}
+	foo.deps = append(foo.deps, Info{Name: "bar", Version: "1.0.0"})
+	c := NewContext(LoggerOption(testLogger{logger: t}), ModuleOption(foo))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	c.SetContext(ctx)
+	var err error
+	go func() {
+		err = c.Load(foo.Info())
+		cancel()
+	}()
+	<-c.Done()
+	if errors.Is(c.Err(), context.DeadlineExceeded) {
+		t.Fatal(c.Err())
+	}
+	if !errors.Is(err, ErrMissingDependency) {
+		t.Fatal(err)
+	}
+}

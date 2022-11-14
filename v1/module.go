@@ -30,6 +30,7 @@ var (
 	ErrInvalidModule             error = errors.New("invalid module")
 	ErrSelfReferentialDependency error = errors.New("self-referential module dependency")
 	ErrCircularDependency        error = errors.New("circular module dependency")
+	ErrMissingDependency         error = errors.New("missing module dependency")
 )
 
 type (
