@@ -24,5 +24,5 @@ the API is the use of [`github.com/uber/fx`](https://uber-go.github.io/fx/),
 a dependency injection system which to some is considered an unecessary anti-pattern. 
 On the other hand, it is the best documented and easiest to use of its class. The next version
 of Mason may go in two different directions. New versions could involve
-supporting other application building libraries or even evolve into a mature abstraction.
+supporting other application building libraries or even evolve into a mature extendable abstraction.
 Mason by no means claims to be a perfect solution, and it is open to feedback!
