@@ -1,5 +1,5 @@
 # Mason
-![example workflow](https://github.com/pedregon/mason/actions/workflows/main.yml/badge.svg)
+[![test](https://github.com/pedregon/mason/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/pedregon/mason/actions/workflows/test.yml)
 Mason is a [compile-time plugin](https://eli.thegreenplace.net/2021/plugins-in-go/) framework for 
 [`github.com/uber/fx`](https://uber-go.github.io/fx/). Dependency injection is *messy*. Plugin systems are *messy*. 
 This Go module was named after stone masons because it provides a simplistic API for pyramid building applications.
