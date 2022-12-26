@@ -58,7 +58,6 @@ type (
 func NewContext(opt ...Option) *Context {
 	c := new(Context)
 	c.Context = context.TODO()
-	c.logger = nopLogger{}
 	c.modules = make(map[string]*moduleWrapper)
 	c.stack = new(stack.Stack[Info])
 	for _, o := range opt {
@@ -117,18 +116,24 @@ func (c *Context) Load(info ...Info) (err error) {
 			if c.stack.Size() > 0 {
 				err = ErrMissingDependency
 			}
-			c.logger.Error("failed to load", i, err)
+			if c.logger != nil {
+				c.logger.Error("failed to load", i, err)
+			}
 			return
 		}
 		if !mod.loaded {
 			if current, ok := c.stack.Peek(); ok && current.String() == i.String() {
 				err = ErrSelfReferentialDependency
-				c.logger.Error("failed to load", i, err)
+				if c.logger != nil {
+					c.logger.Error("failed to load", i, err)
+				}
 				return
 			}
 			if c.stack.Has(i) {
 				err = ErrCircularDependency
-				c.logger.Error("failed to load", i, err)
+				if c.logger != nil {
+					c.logger.Error("failed to load", i, err)
+				}
 				return
 			}
 			c.stack.Push(i)
@@ -143,11 +148,15 @@ func (c *Context) Load(info ...Info) (err error) {
 			c.mu.Unlock()
 			for {
 				if err = c.stack.Err(); err != nil {
-					c.logger.Error("failed to load", i, err)
+					if c.logger != nil {
+						c.logger.Error("failed to load", i, err)
+					}
 					return
 				}
 				if c.stack.Size()-1 == index {
-					c.logger.Info("loaded", i, KV{Key: "runtime", Value: time.Since(start).String()})
+					if c.logger != nil {
+						c.logger.Info("loaded", i, KV{Key: "runtime", Value: time.Since(start).String()})
+					}
 					break
 				}
 				if last, ok := c.stack.Pop(); ok {

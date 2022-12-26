@@ -7,10 +7,7 @@ retract (
 	v1.0.0 // Published accidentally
 )
 
-require (
-	github.com/cespare/xxhash/v2 v2.1.2
-	go.uber.org/fx v1.18.2
-)
+require go.uber.org/fx v1.18.2
 
 require (
 	go.uber.org/atomic v1.10.0 // indirect

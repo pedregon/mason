@@ -66,7 +66,7 @@ type (
 func (t testLogger) Info(msg string, info Info, kv ...KV) {
 	format := "[Modules] INFO msg=%s module=%s"
 	for _, pair := range kv {
-		format += " " + pair.Key + "=" + pair.Value
+		format += " " + pair.String()
 	}
 	t.logger.Logf(format, msg, info)
 }

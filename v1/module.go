@@ -23,7 +23,6 @@ package mason
 
 import (
 	"errors"
-	"github.com/cespare/xxhash/v2"
 )
 
 var (
@@ -52,11 +51,6 @@ type (
 		To   Info
 	}
 )
-
-// ID implements graph.Node from https://github.com/gonum/gonum.
-func (i Info) ID() int64 {
-	return int64(xxhash.Sum64String(i.String()))
-}
 
 // String implements fmt.Stringer.
 func (i Info) String() string {
