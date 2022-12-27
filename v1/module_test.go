@@ -262,3 +262,34 @@ func TestMissingDependency(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestNilLogger(t *testing.T) {
+	baz := &module{name: "baz", version: "1.0.0"}
+	bar := &module{name: "bar", version: "1.0.0"}
+	bar.deps = append(bar.deps, baz.Info())
+	foo := &module{name: "foo", version: "1.0.0"}
+	foo.deps = append(foo.deps, bar.Info())
+	c := NewContext(ModuleOption(foo, bar, baz))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	c.SetContext(ctx)
+	var err error
+	go func() {
+		err = c.Load(bar.Info(), foo.Info(), baz.Info())
+		cancel()
+	}()
+	<-c.Done()
+	if errors.Is(c.Err(), context.DeadlineExceeded) {
+		t.Fatal(c.Err())
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Completed() {
+		t.FailNow()
+	}
+	var relationships []string
+	for _, rel := range c.Graph() {
+		relationships = append(relationships, rel.String())
+	}
+	t.Logf("[Modules] INFO msg=completed graph=[%s]", strings.Join(relationships, ", "))
+}
