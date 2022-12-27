@@ -35,7 +35,7 @@ Therefore, to remain idiomatic, `ServiceFunc` was created to serve as a
 [`Configure`](https://github.com/pedregon/mason/blob/main/v1/mason.go) is called to construct a `Container`of 
 loosely coupled application layer logic. In the following diagram, arrow direction represents use where Mason
 components are aligned with an example layered architecture.
-![layers](docs/layers.drawio.png)
+![layers](docs/layers.png)
 
 `Container` is the end product for presentation layer use.
 Mason by no means claims to be a perfect solution, and it is open to feedback!
