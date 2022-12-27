@@ -41,7 +41,7 @@ type (
 		// Build mounts Service(s) to some API.
 		Build(...Service) error
 	}
-	// Context is the Module context.
+	// Context is the context for Module(s).
 	Context struct {
 		context.Context
 		logger   Logger
