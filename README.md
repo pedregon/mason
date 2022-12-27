@@ -6,7 +6,7 @@ Plugin systems are *messy*.
 [Inversion of control](https://www.henrydu.com/2022/01/09/golang-inversion-of-control/) is *messy*.
 This Go module was named after stone masons because it provides a simplistic API for constructing application pyramids.
 There may be better examples in a future update, but for now check out the
-[TestConfigure](https://github.com/pedregon/mason/blob/main/v1/module_test.go) for an
+[TestConfigure](https://github.com/pedregon/mason/blob/main/v1/mason_test.go) for an
 [`github.com/uber/fx`](https://uber-go.github.io/fx/) implementation.
 ## Design Pattern
 The recommended design pattern for plugin registration is to mimic 
