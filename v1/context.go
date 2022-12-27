@@ -34,7 +34,7 @@ type (
 		context.Context
 		logger   Logger
 		mu       sync.RWMutex
-		services []Service
+		services []ServiceFunc
 		modules  map[string]*moduleWrapper
 		stack    *stack.Stack[Info]
 	}
@@ -59,7 +59,7 @@ func NewContext(opt ...Option) *Context {
 }
 
 // Hook injects service dependencies into Context.
-func (c *Context) Hook(svc ...Service) {
+func (c *Context) Hook(svc ...ServiceFunc) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.services = append(c.services, svc...)

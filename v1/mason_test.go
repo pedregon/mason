@@ -27,17 +27,20 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/fx/fxtest"
+	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
 )
+
+var _ Module = (*module)(nil)
 
 type (
 	module struct {
 		name     string
 		version  string
 		deps     []Info
-		services []Service
+		services []ServiceFunc
 	}
 )
 
@@ -169,41 +172,54 @@ func TestInvalid(t *testing.T) {
 	}
 }
 
+var _ Builder = (*builder)(nil)
+
 type (
 	builder struct {
-		app *fx.App
+		options []fx.Option
 	}
 )
 
-func (b *builder) Build(svc ...Service) error {
-	var opts []fx.Option
-	for _, e := range svc {
-		opt, ok := e.(fx.Option)
+func (b builder) Build() (Container, error) {
+	return fx.New(b.options...), nil
+}
+
+func wrapFx(opt ...fx.Option) ServiceFunc {
+	return func(b Builder) error {
+		_b, ok := b.(*builder)
 		if !ok {
-			return errors.New("invalid type assertion")
+			return ErrInvalidBuilder
 		}
-		opts = append(opts, opt)
+		_b.options = append(_b.options, opt...)
+		return nil
 	}
-	b.app = fx.New(opts...)
-	return nil
 }
 
 func TestConfigure(t *testing.T) {
+	defer func() {
+		if err := recover(); err != nil {
+			t.Logf("panic occurred: %s", err)
+			t.Logf("stack trace: %s", debug.Stack())
+			t.FailNow()
+		}
+	}()
 	foo := &module{name: "foo", version: "1.0.0"}
 	info := foo.Info()
 	foo.services = append(foo.services,
-		fx.Decorate(
-			fx.Annotate(
-				func(bool) bool {
-					return true
-				},
-				fx.OnStart(func(_ context.Context, b bool) error {
-					t.Logf("[App] INFO component=%s fx=%t", info, b)
-					if !b {
-						return errors.New("fx failed")
-					}
-					return nil
-				}),
+		wrapFx(
+			fx.Decorate(
+				fx.Annotate(
+					func(bool) bool {
+						return true
+					},
+					fx.OnStart(func(_ context.Context, b bool) error {
+						t.Logf("[App] INFO component=%s fx=%t", info, b)
+						if !b {
+							return errors.New("fx failed")
+						}
+						return nil
+					}),
+				),
 			),
 		),
 	)
@@ -223,22 +239,26 @@ func TestConfigure(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.Hook(
-		fx.WithLogger(func() fxevent.Logger { return fxtest.NewTestLogger(t) }),
-		fx.Provide(
-			func() bool {
-				return false
-			},
+		wrapFx(
+			fx.WithLogger(func() fxevent.Logger { return fxtest.NewTestLogger(t) }),
+			fx.Provide(
+				func() bool {
+					return false
+				},
+			),
+			fx.Invoke(func(bool) {}),
 		),
-		fx.Invoke(func(bool) {}),
 	)
 	var b builder
-	if err = Configure(c, &b); err != nil {
+	var app *fx.App
+	app, err = Configure[*fx.App](c, &b)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err = b.app.Start(context.TODO()); err != nil {
+	if err = app.Start(context.TODO()); err != nil {
 		t.Fatal(err)
 	}
-	if err = b.app.Stop(context.TODO()); err != nil {
+	if err = app.Stop(context.TODO()); err != nil {
 		t.Fatal(err)
 	}
 }
