@@ -8,6 +8,10 @@ This Go module was named after stone masons because it provides a simplistic API
 There may be better examples in a future update, but for now check out the
 [TestConfigure](https://github.com/pedregon/mason/blob/main/v1/mason_test.go) for an
 [`github.com/uber/fx`](https://uber-go.github.io/fx/) implementation.
+## Installation
+```
+go get -u github.com/pedregon/mason
+```
 ## Design Pattern
 The recommended design pattern for plugin registration is to mimic 
 [`database/sql`](https://eli.thegreenplace.net/2019/design-patterns-in-gos-databasesql-package/) with anonymous
