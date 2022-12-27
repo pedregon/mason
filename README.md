@@ -32,7 +32,8 @@ dependency injection framework, but it has since been decided that a) users do n
 an external library and b) some consider dependency injection systems to be an unnecessary anti-pattern. 
 Therefore, to remain idiomatic, `ServiceFunc` was created to serve as a
 [functional option](https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis) for `Builder` when
-[`Configure`](https://github.com/pedregon/mason/blob/main/v1/mason.go) is called to construct a `Container`of 
+[`Configure`](https://github.com/pedregon/mason/blob/main/v1/mason.go) is called to construct a 
+[`Container`](https://github.com/pedregon/mason/blob/main/v1/mason.go) of 
 loosely coupled application layer logic. `Container` is the end product for presentation layer use.
 In the following diagram, arrow direction represents use. Mason components are aligned with an example layered architecture.
 
