@@ -188,7 +188,7 @@ func (b *builder) Build(svc ...Service) error {
 	return nil
 }
 
-func TestFx(t *testing.T) {
+func TestConfigure(t *testing.T) {
 	foo := &module{name: "foo", version: "1.0.0"}
 	info := foo.Info()
 	foo.services = append(foo.services,
