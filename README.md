@@ -1,12 +1,12 @@
 # Mason
 [![test](https://github.com/pedregon/mason/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/pedregon/mason/actions/workflows/test.yml)
 
-Mason is a [plugin](https://eli.thegreenplace.net/2021/plugins-in-go/) framework for static compilation. 
-[Inversion of control](https://www.henrydu.com/2022/01/09/golang-inversion-of-control/) is *messy*. 
-Plugin systems are *messy*. 
-This Go module was named after stone masons because it provides a simplistic API for pyramid building applications.
+Mason is a [plugin](https://eli.thegreenplace.net/2021/plugins-in-go/) framework for statically compiled Go.
+Plugin systems are *messy*.
+[Inversion of control](https://www.henrydu.com/2022/01/09/golang-inversion-of-control/) is *messy*.
+This Go module was named after stone masons because it provides a simplistic API for constructing application pyramids.
 There may be better examples in a future update, but for now check out the
-[configure test](https://github.com/pedregon/mason/blob/main/v1/module_test.go) with an
+[TestConfigure](https://github.com/pedregon/mason/blob/main/v1/module_test.go) for an
 [`github.com/uber/fx`](https://uber-go.github.io/fx/) implementation.
 ## Design Pattern
 The recommended design pattern for plugin registration is to mimic 
@@ -19,16 +19,24 @@ Mason was developed to offer an alternative to the standard library [`plugin`](h
 RPC solutions such as [`github.com/hashicorp/go-plugin`](https://github.com/hashicorp/go-plugin),
 and other network-based solutions. Mason revolves around a 
 [`Context`](https://github.com/pedregon/mason/blob/main/v1/context.go) in which 
-[`Service`](https://go.dev/tour/methods/14) interface(s) are hooked by *loaded*
+[`ServiceFunc`](https://go.dev/tour/methods/14) function(s) are hooked by *loaded*
 [`Module`](https://github.com/pedregon/mason/blob/main/v1/module.go) interface(s). Mason takes care
-of the plugin dependency plumbing and empowers custom discovery, registration, and hooking. The `Context` is then
+of the plugin dependency plumbing and empowers custom discovery, registration, and hooking. Upon application
+construction, `Context` is
 [*configured*](https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection) using a 
-[`Builder`](https://github.com/pedregon/mason/blob/main/v1/mason.go) interface for inversion of control abstraction. 
+[`Builder`](https://github.com/pedregon/mason/blob/main/v1/mason.go) interface for *encouraged*
+inversion of control abstraction. 
 Initially, [`github.com/uber/fx`](https://uber-go.github.io/fx/) was first-class 
 supported because it was arguably the best documented and easiest to use (no code generation or type inferring) 
 dependency injection framework, but it has since been decided that a) users do not want to be forcibly dependent on 
 an external library and b) some consider dependency injection systems to be an unnecessary anti-pattern. 
-Therefore, to remain idiomatic, `Builder` was created.
+Therefore, to remain idiomatic, `ServiceFunc` was created to serve as a
+[functional option](https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis) for `Builder` when
+[`Configure`](https://github.com/pedregon/mason/blob/main/v1/mason.go) is called to construct a `Container`of 
+loosely coupled application layer logic. In the following diagram, arrow direction represents use where Mason
+components are aligned with an example layered architecture.
+![layers](docs/layers.png)
+`Container` is the end product for presentation layer use.
 Mason by no means claims to be a perfect solution, and it is open to feedback!
 ## Contributing
 This project is open to [pull requests](https://github.com/pedregon/mason/pulls)!
