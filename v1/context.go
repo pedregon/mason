@@ -28,19 +28,7 @@ import (
 	"time"
 )
 
-// Configure safely registers Context Service(s) with a Builder.
-func Configure(c *Context, b Builder) error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return b.Build(c.services)
-}
-
 type (
-	// Builder achieves inversion of control (IoC).
-	Builder interface {
-		// Build mounts Service(s) to some API.
-		Build(...Service) error
-	}
 	// Context is the context for Module(s).
 	Context struct {
 		context.Context
@@ -50,8 +38,6 @@ type (
 		modules  map[string]*moduleWrapper
 		stack    *stack.Stack[Info]
 	}
-	// Service is a provider that extends some API.
-	Service any
 	// moduleWrapper wraps Module to track load status.
 	moduleWrapper struct {
 		Module
