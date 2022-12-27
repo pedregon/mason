@@ -34,10 +34,10 @@ import (
 
 type (
 	module struct {
-		name    string
-		version string
-		deps    []Info
-		options []fx.Option
+		name     string
+		version  string
+		deps     []Info
+		services []Service
 	}
 )
 
@@ -51,8 +51,8 @@ func (mod module) Provision(c *Context) (err error) {
 	if err = c.Load(mod.deps...); err != nil {
 		return
 	}
-	if len(mod.options) > 0 {
-		c.Fx(mod.options...)
+	if len(mod.services) > 0 {
+		c.Hook(mod.services...)
 	}
 	return
 }
@@ -169,10 +169,29 @@ func TestInvalid(t *testing.T) {
 	}
 }
 
+type (
+	builder struct {
+		app *fx.App
+	}
+)
+
+func (b *builder) Build(svc ...Service) error {
+	var opts []fx.Option
+	for _, e := range svc {
+		opt, ok := e.(fx.Option)
+		if !ok {
+			return errors.New("invalid type assertion")
+		}
+		opts = append(opts, opt)
+	}
+	b.app = fx.New(opts...)
+	return nil
+}
+
 func TestFx(t *testing.T) {
 	foo := &module{name: "foo", version: "1.0.0"}
 	info := foo.Info()
-	foo.options = append(foo.options,
+	foo.services = append(foo.services,
 		fx.Decorate(
 			fx.Annotate(
 				func(bool) bool {
@@ -203,7 +222,7 @@ func TestFx(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Fx(
+	c.Hook(
 		fx.WithLogger(func() fxevent.Logger { return fxtest.NewTestLogger(t) }),
 		fx.Provide(
 			func() bool {
@@ -212,11 +231,14 @@ func TestFx(t *testing.T) {
 		),
 		fx.Invoke(func(bool) {}),
 	)
-	app := Build(c)
-	if err = app.Start(context.TODO()); err != nil {
+	var b builder
+	if err = Configure(c, &b); err != nil {
 		t.Fatal(err)
 	}
-	if err = app.Stop(context.TODO()); err != nil {
+	if err = b.app.Start(context.TODO()); err != nil {
+		t.Fatal(err)
+	}
+	if err = b.app.Stop(context.TODO()); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -24,28 +24,34 @@ package mason
 import (
 	"context"
 	"github.com/pedregon/mason/internal/stack"
-	"go.uber.org/fx"
 	"sync"
 	"time"
 )
 
-// Build initializes a new fx.App.
-func Build(c *Context) *fx.App {
+// Configure safely registers Context Service(s) with a Builder.
+func Configure(c *Context, b Builder) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return fx.New(c.options...)
+	return b.Build(c.services)
 }
 
 type (
+	// Builder achieves inversion of control (IoC).
+	Builder interface {
+		// Build mounts Service(s) to some API.
+		Build(...Service) error
+	}
 	// Context is the Module context.
 	Context struct {
 		context.Context
-		logger  Logger
-		mu      sync.RWMutex
-		options []fx.Option
-		modules map[string]*moduleWrapper
-		stack   *stack.Stack[Info]
+		logger   Logger
+		mu       sync.RWMutex
+		services []Service
+		modules  map[string]*moduleWrapper
+		stack    *stack.Stack[Info]
 	}
+	// Service is a provider that extends some API.
+	Service any
 	// moduleWrapper wraps Module to track load status.
 	moduleWrapper struct {
 		Module
@@ -66,11 +72,11 @@ func NewContext(opt ...Option) *Context {
 	return c
 }
 
-// Fx injects service dependencies for fx.New.
-func (c *Context) Fx(opt ...fx.Option) {
+// Hook injects service dependencies into Context.
+func (c *Context) Hook(svc ...Service) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.options = append(c.options, opt...)
+	c.services = append(c.services, svc...)
 	return
 }
 
