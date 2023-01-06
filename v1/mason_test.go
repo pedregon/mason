@@ -52,10 +52,10 @@ type (
 	}
 )
 
-func (m *nopMortar) Hook(s ...Stone) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.services = append(m.services, s)
+func (mort *nopMortar) Hook(s ...Stone) error {
+	mort.mu.Lock()
+	defer mort.mu.Unlock()
+	mort.services = append(mort.services, s)
 	return nil
 }
 
@@ -96,13 +96,13 @@ func (t testLogger) Error(msg string, info Info, err error) {
 }
 
 func TestModules(t *testing.T) {
-	m := new(nopMortar)
+	mort := new(nopMortar)
 	baz := &module{name: "baz", version: "1.0.0"}
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(m, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
+	c := NewContext(mort, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -128,10 +128,10 @@ func TestModules(t *testing.T) {
 }
 
 func TestSelfReferentialDependency(t *testing.T) {
-	m := new(nopMortar)
+	mort := new(nopMortar)
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, foo.Info())
-	c := NewContext(m, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
+	c := NewContext(mort, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -149,14 +149,14 @@ func TestSelfReferentialDependency(t *testing.T) {
 }
 
 func TestCircularDependency(t *testing.T) {
-	m := new(nopMortar)
+	mort := new(nopMortar)
 	baz := &module{name: "baz", version: "1.0.0"}
 	baz.deps = append(baz.deps, Info{Name: "foo", Version: "1.0.0"})
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(m, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
+	c := NewContext(mort, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -174,9 +174,9 @@ func TestCircularDependency(t *testing.T) {
 }
 
 func TestInvalid(t *testing.T) {
-	m := new(nopMortar)
+	mort := new(nopMortar)
 	foo := &module{name: "foo", version: "1.0.0"}
-	c := NewContext(m, LoggerOption(testLogger{logger: t}))
+	c := NewContext(mort, LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -204,19 +204,19 @@ type (
 	}
 )
 
-func (m *fxMortar) Hook(s ...Stone) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (mort *fxMortar) Hook(s ...Stone) error {
+	mort.mu.Lock()
+	defer mort.mu.Unlock()
 	for _, e := range s {
-		m.options = append(m.options, e.(fx.Option))
+		mort.options = append(mort.options, e.(fx.Option))
 	}
 	return nil
 }
 
-func (m *fxMortar) Trowel() *fx.App {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return fx.New(m.options...)
+func (mort *fxMortar) Trowel() *fx.App {
+	mort.mu.RLock()
+	defer mort.mu.RUnlock()
+	return fx.New(mort.options...)
 }
 
 func TestMortar(t *testing.T) {
@@ -227,11 +227,11 @@ func TestMortar(t *testing.T) {
 			t.FailNow()
 		}
 	}()
-	m := new(fxMortar)
+	mort := new(fxMortar)
 	foo := &module{name: "foo", version: "1.0.0"}
 	info := foo.Info()
 	var err error
-	if err = m.Hook(
+	if err = mort.Hook(
 		fx.Decorate(
 			fx.Annotate(
 				func(bool) bool {
@@ -249,7 +249,7 @@ func TestMortar(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	c := NewContext(m, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
+	c := NewContext(mort, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	go func() {
@@ -274,7 +274,7 @@ func TestMortar(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	app := m.Trowel()
+	app := mort.Trowel()
 	if err = app.Start(context.TODO()); err != nil {
 		t.Fatal(err)
 	}
@@ -284,10 +284,10 @@ func TestMortar(t *testing.T) {
 }
 
 func TestMissingDependency(t *testing.T) {
-	m := new(nopMortar)
+	mort := new(nopMortar)
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, Info{Name: "bar", Version: "1.0.0"})
-	c := NewContext(m, LoggerOption(testLogger{logger: t}), ModuleOption(foo))
+	c := NewContext(mort, LoggerOption(testLogger{logger: t}), ModuleOption(foo))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -305,13 +305,13 @@ func TestMissingDependency(t *testing.T) {
 }
 
 func TestNilLogger(t *testing.T) {
-	m := new(nopMortar)
+	mort := new(nopMortar)
 	baz := &module{name: "baz", version: "1.0.0"}
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(m, ModuleOption(foo, bar, baz))
+	c := NewContext(mort, ModuleOption(foo, bar, baz))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error

@@ -33,7 +33,7 @@ type (
 	Context struct {
 		context.Context
 		logger  Logger
-		mortar  Mortar
+		mort    Mortar
 		mu      sync.RWMutex
 		modules map[string]*moduleWrapper
 		stack   *stack.Stack[Info]
@@ -47,10 +47,10 @@ type (
 )
 
 // NewContext creates a new Context using Mortar.
-func NewContext(mortar Mortar, opt ...Option) *Context {
+func NewContext(mort Mortar, opt ...Option) *Context {
 	c := new(Context)
 	c.Context = context.TODO()
-	c.mortar = mortar
+	c.mort = mort
 	c.modules = make(map[string]*moduleWrapper)
 	c.stack = new(stack.Stack[Info])
 	for _, o := range opt {
@@ -61,7 +61,7 @@ func NewContext(mortar Mortar, opt ...Option) *Context {
 
 // Hook injects service dependencies into Context.
 func (c *Context) Hook(s ...Stone) error {
-	return c.mortar.Hook(s...)
+	return c.mort.Hook(s...)
 }
 
 // Graph returns the Module dependency graph.
