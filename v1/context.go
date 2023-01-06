@@ -32,11 +32,11 @@ type (
 	// Context is the context for Module(s).
 	Context struct {
 		context.Context
-		logger   Logger
-		mu       sync.RWMutex
-		services []ServiceFunc
-		modules  map[string]*moduleWrapper
-		stack    *stack.Stack[Info]
+		logger  Logger
+		reg     Registrar
+		mu      sync.RWMutex
+		modules map[string]*moduleWrapper
+		stack   *stack.Stack[Info]
 	}
 	// moduleWrapper wraps Module to track load status.
 	moduleWrapper struct {
@@ -46,10 +46,11 @@ type (
 	}
 )
 
-// NewContext creates a new Context.
-func NewContext(opt ...Option) *Context {
+// NewContext creates a new Context using a Registrar.
+func NewContext(reg Registrar, opt ...Option) *Context {
 	c := new(Context)
 	c.Context = context.TODO()
+	c.reg = reg
 	c.modules = make(map[string]*moduleWrapper)
 	c.stack = new(stack.Stack[Info])
 	for _, o := range opt {
@@ -59,10 +60,12 @@ func NewContext(opt ...Option) *Context {
 }
 
 // Hook injects service dependencies into Context.
-func (c *Context) Hook(svc ...ServiceFunc) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.services = append(c.services, svc...)
+func (c *Context) Hook(svc ...Service) (err error) {
+	for _, e := range svc {
+		if err = c.reg.Register(e); err != nil {
+			return
+		}
+	}
 	return
 }
 

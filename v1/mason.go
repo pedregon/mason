@@ -1,47 +1,35 @@
+// Copyright (c) 2022 miche.io
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+//
+// SPDX-License-Identifier: MIT
+
 package mason
 
-import "errors"
-
-var (
-	// ErrInvalidBuilder provides a means for error checking ServiceFunc Builder type casts.
-	ErrInvalidBuilder   error = errors.New("invalid builder")
-	ErrInvalidContainer error = errors.New("invalid container")
-)
-
 type (
-	// Builder encourages inversion of control (IoC).
+	// Registrar is a collection of loosely coupled application logic. It encourages inversion of control (IoC).
 	// https://learn.microsoft.com/en-us/dotnet/architecture/modern-web-apps-azure/architectural-principles#dependency-inversion
-	// It is recommended to interface guard.
+	// It is also recommended to interface guard.
 	// https://caddyserver.com/docs/extending-caddy#interface-guards
-	Builder interface {
-		// Build constructs a Container.
-		Build() (Container, error)
+	Registrar interface {
+		// Register mounts a Service to some API.
+		Register(Service) error
 	}
-	// Container is a collection of loosely coupled application logic. Empty for future backwards compatability.
-	Container any
-	// ServiceFunc is a provider function that extends some API. Cast Builder to a struct (optional function).
-	// https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
-	ServiceFunc func(Builder) error
+	// Service is a "provider" that extends some API. Empty for future backwards compatability.
+	Service any
 )
-
-// Configure safely mounts Context ServiceFunc(s) to Builder and returns a built Container.
-func Configure[C Container](c *Context, b Builder) (ctn C, err error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	for _, svc := range c.services {
-		if err = svc(b); err != nil {
-			return
-		}
-	}
-	var e Container
-	e, err = b.Build()
-	if err != nil {
-		return
-	}
-	var ok bool
-	ctn, ok = e.(C)
-	if !ok {
-		err = ErrInvalidContainer
-	}
-	return
-}

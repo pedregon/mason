@@ -29,20 +29,35 @@ import (
 	"go.uber.org/fx/fxtest"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
-var _ Module = (*module)(nil)
+var (
+	_ Registrar = (*nopRegistrar)(nil)
+	_ Module    = (*module)(nil)
+)
 
 type (
+	nopRegistrar struct {
+		mu       sync.Mutex
+		services []Service
+	}
 	module struct {
 		name     string
 		version  string
 		deps     []Info
-		services []ServiceFunc
+		services []Service
 	}
 )
+
+func (reg *nopRegistrar) Register(svc Service) error {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	reg.services = append(reg.services, svc)
+	return nil
+}
 
 func (mod module) Info() (info Info) {
 	info.Name = mod.name
@@ -55,7 +70,9 @@ func (mod module) Provision(c *Context) (err error) {
 		return
 	}
 	if len(mod.services) > 0 {
-		c.Hook(mod.services...)
+		if err = c.Hook(mod.services...); err != nil {
+			return
+		}
 	}
 	return
 }
@@ -79,12 +96,13 @@ func (t testLogger) Error(msg string, info Info, err error) {
 }
 
 func TestModules(t *testing.T) {
+	reg := new(nopRegistrar)
 	baz := &module{name: "baz", version: "1.0.0"}
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
+	c := NewContext(reg, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -110,9 +128,10 @@ func TestModules(t *testing.T) {
 }
 
 func TestSelfReferentialDependency(t *testing.T) {
+	reg := new(nopRegistrar)
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, foo.Info())
-	c := NewContext(ModuleOption(foo), LoggerOption(testLogger{logger: t}))
+	c := NewContext(reg, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -130,13 +149,14 @@ func TestSelfReferentialDependency(t *testing.T) {
 }
 
 func TestCircularDependency(t *testing.T) {
+	reg := new(nopRegistrar)
 	baz := &module{name: "baz", version: "1.0.0"}
 	baz.deps = append(baz.deps, Info{Name: "foo", Version: "1.0.0"})
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
+	c := NewContext(reg, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -154,8 +174,9 @@ func TestCircularDependency(t *testing.T) {
 }
 
 func TestInvalid(t *testing.T) {
+	reg := new(nopRegistrar)
 	foo := &module{name: "foo", version: "1.0.0"}
-	c := NewContext(LoggerOption(testLogger{logger: t}))
+	c := NewContext(reg, LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -172,30 +193,31 @@ func TestInvalid(t *testing.T) {
 	}
 }
 
-var _ Builder = (*builder)(nil)
+var (
+	_ Registrar = (*fxRegistrar)(nil)
+)
 
 type (
-	builder struct {
+	fxRegistrar struct {
+		mu      sync.RWMutex
 		options []fx.Option
 	}
 )
 
-func (b builder) Build() (Container, error) {
-	return fx.New(b.options...), nil
+func (reg *fxRegistrar) Register(svc Service) error {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	reg.options = append(reg.options, svc.(fx.Option))
+	return nil
 }
 
-func wrapFx(opt ...fx.Option) ServiceFunc {
-	return func(b Builder) error {
-		_b, ok := b.(*builder)
-		if !ok {
-			return ErrInvalidBuilder
-		}
-		_b.options = append(_b.options, opt...)
-		return nil
-	}
+func (reg *fxRegistrar) Construct() *fx.App {
+	reg.mu.RLock()
+	defer reg.mu.RUnlock()
+	return fx.New(reg.options...)
 }
 
-func TestConfigure(t *testing.T) {
+func TestRegistrar(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
 			t.Logf("panic occurred: %s", err)
@@ -203,30 +225,31 @@ func TestConfigure(t *testing.T) {
 			t.FailNow()
 		}
 	}()
+	reg := new(fxRegistrar)
 	foo := &module{name: "foo", version: "1.0.0"}
 	info := foo.Info()
-	foo.services = append(foo.services,
-		wrapFx(
-			fx.Decorate(
-				fx.Annotate(
-					func(bool) bool {
-						return true
-					},
-					fx.OnStart(func(_ context.Context, b bool) error {
-						t.Logf("[App] INFO component=%s fx=%t", info, b)
-						if !b {
-							return errors.New("fx failed")
-						}
-						return nil
-					}),
-				),
+	var err error
+	if err = reg.Register(
+		fx.Decorate(
+			fx.Annotate(
+				func(bool) bool {
+					return true
+				},
+				fx.OnStart(func(_ context.Context, b bool) error {
+					t.Logf("[App] INFO component=%s fx=%t", info, b)
+					if !b {
+						return errors.New("fx failed")
+					}
+					return nil
+				}),
 			),
 		),
-	)
-	c := NewContext(ModuleOption(foo), LoggerOption(testLogger{logger: t}))
+	); err != nil {
+		t.Fatal(err)
+	}
+	c := NewContext(reg, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
-	var err error
 	go func() {
 		err = c.Load(info)
 		cancel()
@@ -238,23 +261,18 @@ func TestConfigure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Hook(
-		wrapFx(
-			fx.WithLogger(func() fxevent.Logger { return fxtest.NewTestLogger(t) }),
-			fx.Provide(
-				func() bool {
-					return false
-				},
-			),
-			fx.Invoke(func(bool) {}),
+	if err = c.Hook(
+		fx.WithLogger(func() fxevent.Logger { return fxtest.NewTestLogger(t) }),
+		fx.Provide(
+			func() bool {
+				return false
+			},
 		),
-	)
-	var b builder
-	var app *fx.App
-	app, err = Configure[*fx.App](c, &b)
-	if err != nil {
+		fx.Invoke(func(bool) {}),
+	); err != nil {
 		t.Fatal(err)
 	}
+	app := reg.Construct()
 	if err = app.Start(context.TODO()); err != nil {
 		t.Fatal(err)
 	}
@@ -264,9 +282,10 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestMissingDependency(t *testing.T) {
+	reg := new(nopRegistrar)
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, Info{Name: "bar", Version: "1.0.0"})
-	c := NewContext(LoggerOption(testLogger{logger: t}), ModuleOption(foo))
+	c := NewContext(reg, LoggerOption(testLogger{logger: t}), ModuleOption(foo))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -284,12 +303,13 @@ func TestMissingDependency(t *testing.T) {
 }
 
 func TestNilLogger(t *testing.T) {
+	reg := new(nopRegistrar)
 	baz := &module{name: "baz", version: "1.0.0"}
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(ModuleOption(foo, bar, baz))
+	c := NewContext(reg, ModuleOption(foo, bar, baz))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
