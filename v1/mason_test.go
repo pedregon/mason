@@ -219,7 +219,7 @@ func (m *fxMortar) Trowel() *fx.App {
 	return fx.New(m.options...)
 }
 
-func TestRegistrar(t *testing.T) {
+func TestMortar(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
 			t.Logf("panic occurred: %s", err)
