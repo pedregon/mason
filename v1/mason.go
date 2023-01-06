@@ -28,7 +28,7 @@ type (
 	// https://caddyserver.com/docs/extending-caddy#interface-guards
 	Registrar interface {
 		// Register mounts a Service to some API.
-		Register(Service) error
+		Register(...Service) error
 	}
 	// Service is a "provider" that extends some API. Empty for future backwards compatability.
 	Service any

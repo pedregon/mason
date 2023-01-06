@@ -60,13 +60,8 @@ func NewContext(reg Registrar, opt ...Option) *Context {
 }
 
 // Hook injects service dependencies into Context.
-func (c *Context) Hook(svc ...Service) (err error) {
-	for _, e := range svc {
-		if err = c.reg.Register(e); err != nil {
-			return
-		}
-	}
-	return
+func (c *Context) Hook(svc ...Service) error {
+	return c.reg.Register(svc...)
 }
 
 // Graph returns the Module dependency graph.

@@ -52,7 +52,7 @@ type (
 	}
 )
 
-func (reg *nopRegistrar) Register(svc Service) error {
+func (reg *nopRegistrar) Register(svc ...Service) error {
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 	reg.services = append(reg.services, svc)
@@ -204,10 +204,12 @@ type (
 	}
 )
 
-func (reg *fxRegistrar) Register(svc Service) error {
+func (reg *fxRegistrar) Register(svc ...Service) error {
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
-	reg.options = append(reg.options, svc.(fx.Option))
+	for _, e := range svc {
+		reg.options = append(reg.options, e.(fx.Option))
+	}
 	return nil
 }
 
