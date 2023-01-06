@@ -35,27 +35,27 @@ import (
 )
 
 var (
-	_ Registrar = (*nopRegistrar)(nil)
-	_ Module    = (*module)(nil)
+	_ Mortar = (*nopMortar)(nil)
+	_ Module = (*module)(nil)
 )
 
 type (
-	nopRegistrar struct {
+	nopMortar struct {
 		mu       sync.Mutex
-		services []Service
+		services []Stone
 	}
 	module struct {
 		name     string
 		version  string
 		deps     []Info
-		services []Service
+		services []Stone
 	}
 )
 
-func (reg *nopRegistrar) Register(svc ...Service) error {
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-	reg.services = append(reg.services, svc)
+func (m *nopMortar) Hook(s ...Stone) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.services = append(m.services, s)
 	return nil
 }
 
@@ -96,13 +96,13 @@ func (t testLogger) Error(msg string, info Info, err error) {
 }
 
 func TestModules(t *testing.T) {
-	reg := new(nopRegistrar)
+	m := new(nopMortar)
 	baz := &module{name: "baz", version: "1.0.0"}
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(reg, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
+	c := NewContext(m, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -128,10 +128,10 @@ func TestModules(t *testing.T) {
 }
 
 func TestSelfReferentialDependency(t *testing.T) {
-	reg := new(nopRegistrar)
+	m := new(nopMortar)
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, foo.Info())
-	c := NewContext(reg, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
+	c := NewContext(m, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -149,14 +149,14 @@ func TestSelfReferentialDependency(t *testing.T) {
 }
 
 func TestCircularDependency(t *testing.T) {
-	reg := new(nopRegistrar)
+	m := new(nopMortar)
 	baz := &module{name: "baz", version: "1.0.0"}
 	baz.deps = append(baz.deps, Info{Name: "foo", Version: "1.0.0"})
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(reg, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
+	c := NewContext(m, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -174,9 +174,9 @@ func TestCircularDependency(t *testing.T) {
 }
 
 func TestInvalid(t *testing.T) {
-	reg := new(nopRegistrar)
+	m := new(nopMortar)
 	foo := &module{name: "foo", version: "1.0.0"}
-	c := NewContext(reg, LoggerOption(testLogger{logger: t}))
+	c := NewContext(m, LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -194,29 +194,29 @@ func TestInvalid(t *testing.T) {
 }
 
 var (
-	_ Registrar = (*fxRegistrar)(nil)
+	_ Mortar = (*fxMortar)(nil)
 )
 
 type (
-	fxRegistrar struct {
+	fxMortar struct {
 		mu      sync.RWMutex
 		options []fx.Option
 	}
 )
 
-func (reg *fxRegistrar) Register(svc ...Service) error {
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-	for _, e := range svc {
-		reg.options = append(reg.options, e.(fx.Option))
+func (m *fxMortar) Hook(s ...Stone) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range s {
+		m.options = append(m.options, e.(fx.Option))
 	}
 	return nil
 }
 
-func (reg *fxRegistrar) Construct() *fx.App {
-	reg.mu.RLock()
-	defer reg.mu.RUnlock()
-	return fx.New(reg.options...)
+func (m *fxMortar) Trowel() *fx.App {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return fx.New(m.options...)
 }
 
 func TestRegistrar(t *testing.T) {
@@ -227,11 +227,11 @@ func TestRegistrar(t *testing.T) {
 			t.FailNow()
 		}
 	}()
-	reg := new(fxRegistrar)
+	m := new(fxMortar)
 	foo := &module{name: "foo", version: "1.0.0"}
 	info := foo.Info()
 	var err error
-	if err = reg.Register(
+	if err = m.Hook(
 		fx.Decorate(
 			fx.Annotate(
 				func(bool) bool {
@@ -249,7 +249,7 @@ func TestRegistrar(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	c := NewContext(reg, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
+	c := NewContext(m, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	go func() {
@@ -274,7 +274,7 @@ func TestRegistrar(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	app := reg.Construct()
+	app := m.Trowel()
 	if err = app.Start(context.TODO()); err != nil {
 		t.Fatal(err)
 	}
@@ -284,10 +284,10 @@ func TestRegistrar(t *testing.T) {
 }
 
 func TestMissingDependency(t *testing.T) {
-	reg := new(nopRegistrar)
+	m := new(nopMortar)
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, Info{Name: "bar", Version: "1.0.0"})
-	c := NewContext(reg, LoggerOption(testLogger{logger: t}), ModuleOption(foo))
+	c := NewContext(m, LoggerOption(testLogger{logger: t}), ModuleOption(foo))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error
@@ -305,13 +305,13 @@ func TestMissingDependency(t *testing.T) {
 }
 
 func TestNilLogger(t *testing.T) {
-	reg := new(nopRegistrar)
+	m := new(nopMortar)
 	baz := &module{name: "baz", version: "1.0.0"}
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(reg, ModuleOption(foo, bar, baz))
+	c := NewContext(m, ModuleOption(foo, bar, baz))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	c.SetContext(ctx)
 	var err error

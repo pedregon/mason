@@ -22,14 +22,15 @@
 package mason
 
 type (
-	// Registrar is a collection of loosely coupled application logic. It encourages inversion of control (IoC).
+	// Mortar is the "glue" of some API. It represents a collection of loosely coupled application logic intended to
+	// encourage inversion of control (IoC).
 	// https://learn.microsoft.com/en-us/dotnet/architecture/modern-web-apps-azure/architectural-principles#dependency-inversion
-	// It is also recommended to interface guard.
+	// It is recommended to use an interface guard.
 	// https://caddyserver.com/docs/extending-caddy#interface-guards
-	Registrar interface {
-		// Register mounts a Service to some API.
-		Register(...Service) error
+	Mortar interface {
+		// Hook mounts a Stone to some API.
+		Hook(...Stone) error
 	}
-	// Service is a "provider" that extends some API. Empty for future backwards compatability.
-	Service any
+	// Stone is a "provider" that extends some API. Empty for future backwards compatability.
+	Stone any
 )
