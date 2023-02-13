@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	// interface guard
+	// interface guard.
 	_ Mortar = (*Context)(nil)
 )
 

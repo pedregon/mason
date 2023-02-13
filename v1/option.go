@@ -77,7 +77,7 @@ func DeadlineOption(d time.Time) Option {
 }
 
 // ValueOption is equivalent to context.WithValue.
-func ValueOption(key string, val any) Option {
+func ValueOption(key any, val any) Option {
 	return func(c *Context) {
 		c.Context = context.WithValue(c, key, val)
 	}
