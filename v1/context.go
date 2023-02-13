@@ -43,15 +43,12 @@ type (
 	// Context is the context for Module(s).
 	Context struct {
 		context.Context
-		mort     Mortar
-		mu       sync.RWMutex
-		modules  map[string]*moduleWrapper
-		stack    *stack.Stack[Info]
-		ch       chan Event
-		isClosed bool
-		skip     Skipper
-		isPanic  bool
-		cancel   context.CancelFunc
+		mort      Mortar
+		mu        sync.RWMutex
+		modules   map[string]*moduleWrapper
+		stack     *stack.Stack[Info]
+		skip      Skipper
+		callbacks []Observer
 	}
 	// moduleWrapper wraps Module to track load status.
 	moduleWrapper struct {
@@ -67,29 +64,29 @@ func (e Event) Blame() Info {
 	return e.info
 }
 
-// Err returns nil if a Module was loaded or an error if a problem occurred.
+// Err returns nil if a Module was loaded or if a problem occurred, an error.
 func (e Event) Err() error {
 	return e.err
 }
 
 // NewContext creates a new Context using Mortar.
-func NewContext(ctx context.Context, mort Mortar, opt ...Option) (*Context, context.CancelFunc) {
+func NewContext(ctx context.Context, mort Mortar, opt ...Option) *Context {
 	c := new(Context)
+	c.Context = ctx
 	c.mort = mort
 	c.modules = make(map[string]*moduleWrapper)
 	c.stack = new(stack.Stack[Info])
-	c.ch = make(chan Event, 1)
 	c.skip = DefaultSkipper
-	c.Context, c.cancel = context.WithCancel(ctx)
 	for _, o := range opt {
 		o(c)
 	}
-	return c, func() {
-		c.cancel()
-		if !c.isClosed {
-			close(c.ch)
-		}
-		c.isClosed = true
+	return c
+}
+
+// callback iterates executes callback Observer(s).
+func (c *Context) callback(e Event) {
+	for _, cb := range c.callbacks {
+		cb(c, e)
 	}
 }
 
@@ -104,18 +101,12 @@ func (c *Context) Register(mod ...Module) (err error) {
 		info := m.Info()
 		if m == nil {
 			err = ErrInvalidModule
-			if c.isPanic {
-				panic(err)
-			}
-			c.ch <- Event{info: info, err: err}
+			c.callback(Event{info: info, err: err})
 			return
 		}
 		if _, dup := c.modules[info.String()]; dup {
 			err = fmt.Errorf("%w %s", ErrDuplicateModule, info.String())
-			if c.isPanic {
-				panic(err)
-			}
-			c.ch <- Event{info: info, err: err}
+			c.callback(Event{info: info, err: err})
 			return
 		}
 		c.modules[info.String()] = &moduleWrapper{
@@ -147,7 +138,7 @@ func (c *Context) Load(info ...Info) (err error) {
 			if c.stack.Size() > 0 {
 				err = ErrMissingDependency
 			}
-			c.ch <- Event{info: i, err: err}
+			c.callback(Event{info: i, err: err})
 			return
 		}
 		if c.skip(i) {
@@ -156,12 +147,12 @@ func (c *Context) Load(info ...Info) (err error) {
 		if !mod.loaded {
 			if current, ok := c.stack.Peek(); ok && current.String() == i.String() {
 				err = ErrSelfReferentialDependency
-				c.ch <- Event{info: i, err: err}
+				c.callback(Event{info: i, err: err})
 				return
 			}
 			if c.stack.Has(i) {
 				err = ErrCircularDependency
-				c.ch <- Event{info: i, err: err}
+				c.callback(Event{info: i, err: err})
 				return
 			}
 			c.stack.Push(i)
@@ -177,11 +168,11 @@ func (c *Context) Load(info ...Info) (err error) {
 			c.mu.Unlock()
 			for {
 				if err = c.stack.Err(); err != nil {
-					c.ch <- Event{info: i, err: err}
+					c.callback(Event{info: i, err: err})
 					return
 				}
 				if c.stack.Size()-1 == index {
-					c.ch <- Event{info: i, err: err}
+					c.callback(Event{info: i, err: err})
 					break
 				}
 				if last, ok := c.stack.Pop(); ok {

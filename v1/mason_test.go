@@ -24,7 +24,6 @@ package mason_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/pedregon/mason/v1"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -79,17 +78,15 @@ func (mod module) Provision(c *mason.Context) (err error) {
 	return
 }
 
-func printLogger(c *mason.Context, ch <-chan mason.Event) {
-	go func() {
-		for e := range ch {
-			info := e.Blame()
-			if err := e.Err(); err != nil {
-				fmt.Printf("[Modules] ERROR msg='failed to load' info=%s err='%s'\n", info, err)
-			} else {
-				fmt.Printf("[Modules] INFO msg='loaded' module=%s, runtime=%s\n", info, c.Stat(info))
-			}
+func testLogger(t *testing.T) mason.Observer {
+	return func(c *mason.Context, e mason.Event) {
+		info := e.Blame()
+		if err := e.Err(); err != nil {
+			t.Logf("[Modules] ERROR msg='failed to load' info=%s err='%s'", info, err)
+		} else {
+			t.Logf("[Modules] INFO msg='loaded' module=%s, runtime=%s", info, c.Stat(info))
 		}
-	}()
+	}
 }
 
 func TestModules(t *testing.T) {
@@ -99,8 +96,8 @@ func TestModules(t *testing.T) {
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(printLogger))
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	c := mason.NewContext(ctx, &nopMortar{}, mason.ObserveOption(testLogger(t)))
 	var err error
 	// register
 	if err = c.Register(foo, bar, baz); err != nil {
@@ -132,8 +129,8 @@ func TestSelfReferentialDependency(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, foo.Info())
-	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(printLogger))
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	c := mason.NewContext(ctx, &nopMortar{}, mason.ObserveOption(testLogger(t)))
 	var err error
 	// register
 	if err = c.Register(foo); err != nil {
@@ -161,8 +158,8 @@ func TestCircularDependency(t *testing.T) {
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(printLogger))
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	c := mason.NewContext(ctx, &nopMortar{}, mason.ObserveOption(testLogger(t)))
 	var err error
 	// register
 	if err = c.Register(foo, bar, baz); err != nil {
@@ -185,8 +182,8 @@ func TestCircularDependency(t *testing.T) {
 func TestInvalid(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
-	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(printLogger))
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	c := mason.NewContext(ctx, &nopMortar{}, mason.ObserveOption(testLogger(t)))
 	var err error
 	// hook
 	go func() {
@@ -239,8 +236,10 @@ func TestMortar(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
 	mort := &fxMortar{}
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	c := mason.NewContext(ctx, mort, mason.ObserveOption(testLogger(t)))
 	var err error
-	if err = mort.Hook(
+	if err = c.Hook(
 		fx.Decorate(
 			fx.Annotate(
 				func(bool) bool {
@@ -258,8 +257,6 @@ func TestMortar(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	c, cancel := mason.NewContext(context.TODO(), mort, mason.TimeoutOption(time.Second),
-		mason.WatchOption(printLogger))
 	// register
 	if err = c.Register(foo); err != nil {
 		t.Fatal(err)
@@ -278,7 +275,6 @@ func TestMortar(t *testing.T) {
 	}
 	go func() {
 		err = mason.Load(c)
-		cancel()
 		cancel()
 	}()
 	<-c.Done()
@@ -301,8 +297,8 @@ func TestMissingDependency(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, mason.Info{Name: "bar", Version: "1.0.0"})
-	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(printLogger))
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	c := mason.NewContext(ctx, &nopMortar{}, mason.ObserveOption(testLogger(t)))
 	var err error
 	// register
 	if err = c.Register(foo); err != nil {
@@ -325,7 +321,8 @@ func TestMissingDependency(t *testing.T) {
 func TestDuplicateModule(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
-	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.WatchOption(printLogger))
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	c := mason.NewContext(ctx, &nopMortar{}, mason.ObserveOption(testLogger(t)))
 	defer cancel()
 	// register
 	err := c.Register(foo, foo)
@@ -341,8 +338,8 @@ func skipper(_ mason.Info) bool {
 func TestSkipper(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
-	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.SkipOption(skipper))
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	c := mason.NewContext(ctx, &nopMortar{}, mason.ObserveOption(testLogger(t)), mason.SkipOption(skipper))
 	var err error
 	// register
 	if err = c.Register(foo); err != nil {

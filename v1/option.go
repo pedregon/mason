@@ -21,11 +21,6 @@
 
 package mason
 
-import (
-	"context"
-	"time"
-)
-
 var (
 	// DefaultSkipper skips no Module(s).
 	DefaultSkipper Skipper = func(_ Info) bool {
@@ -39,14 +34,9 @@ type (
 	Option func(*Context)
 	// Skipper is a callback function that decides whether to skip a Module.
 	Skipper func(Info) bool
-	// Observer is a callback function that observes a read-only Event channel.
-	Observer func(*Context, <-chan Event)
+	// Observer is a callback function that observes Event(s).
+	Observer func(*Context, Event)
 )
-
-// PanicOption panics if a Module is registered twice.
-func PanicOption(c *Context) {
-	c.isPanic = true
-}
 
 // SkipOption skips a Module on Load.
 func SkipOption(skip Skipper) Option {
@@ -55,30 +45,9 @@ func SkipOption(skip Skipper) Option {
 	}
 }
 
-// WatchOption watches Event(s). The Observer is protected from Module caller(s).
-func WatchOption(obs Observer) Option {
+// ObserveOption observers the Context. The Observer is protected from Module caller(s).
+func ObserveOption(o Observer) Option {
 	return func(c *Context) {
-		obs(c, c.ch)
-	}
-}
-
-// TimeoutOption is equivalent to context.WithTimeout.
-func TimeoutOption(timeout time.Duration) Option {
-	return func(c *Context) {
-		c.Context, c.cancel = context.WithTimeout(c, timeout)
-	}
-}
-
-// DeadlineOption is equivalent to context.WithDeadline.
-func DeadlineOption(d time.Time) Option {
-	return func(c *Context) {
-		c.Context, c.cancel = context.WithDeadline(c, d)
-	}
-}
-
-// ValueOption is equivalent to context.WithValue.
-func ValueOption(key any, val any) Option {
-	return func(c *Context) {
-		c.Context = context.WithValue(c, key, val)
+		c.callbacks = append(c.callbacks, o)
 	}
 }
