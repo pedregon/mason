@@ -51,8 +51,7 @@ type (
 		isClosed bool
 		skip     Skipper
 		isPanic  bool
-		timeout  time.Duration
-		deadline time.Time
+		cancel   context.CancelFunc
 	}
 	// moduleWrapper wraps Module to track load status.
 	moduleWrapper struct {
@@ -81,19 +80,12 @@ func NewContext(ctx context.Context, mort Mortar, opt ...Option) (*Context, cont
 	c.stack = new(stack.Stack[Info])
 	c.ch = make(chan Event, 1)
 	c.skip = DefaultSkipper
+	c.Context, c.cancel = context.WithCancel(ctx)
 	for _, o := range opt {
 		o(c)
 	}
-	var cancel context.CancelFunc
-	if c.timeout > 0 {
-		c.Context, cancel = context.WithTimeout(ctx, c.timeout)
-	} else if !c.deadline.IsZero() {
-		c.Context, cancel = context.WithDeadline(ctx, c.deadline)
-	} else {
-		c.Context, cancel = context.WithCancel(ctx)
-	}
 	return c, func() {
-		cancel()
+		c.cancel()
 		if !c.isClosed {
 			close(c.ch)
 		}

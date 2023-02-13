@@ -65,14 +65,14 @@ func WatchOption(obs Observer) Option {
 // TimeoutOption is equivalent to context.WithTimeout.
 func TimeoutOption(timeout time.Duration) Option {
 	return func(c *Context) {
-		c.timeout = timeout
+		c.Context, c.cancel = context.WithTimeout(c, timeout)
 	}
 }
 
 // DeadlineOption is equivalent to context.WithDeadline.
 func DeadlineOption(d time.Time) Option {
 	return func(c *Context) {
-		c.deadline = d
+		c.Context, c.cancel = context.WithDeadline(c, d)
 	}
 }
 
