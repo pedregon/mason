@@ -23,80 +23,129 @@ package mason
 
 import (
 	"context"
+	"fmt"
 	"github.com/pedregon/mason/internal/stack"
 	"sync"
 	"time"
 )
 
+var (
+	// interface guard
+	_ Mortar = (*Context)(nil)
+)
+
 type (
+	// Event is a Context event.
+	Event struct {
+		info Info
+		err  error
+	}
 	// Context is the context for Module(s).
 	Context struct {
 		context.Context
-		logger  Logger
-		mort    Mortar
-		mu      sync.RWMutex
-		modules map[string]*moduleWrapper
-		stack   *stack.Stack[Info]
+		mort     Mortar
+		mu       sync.RWMutex
+		modules  map[string]*moduleWrapper
+		stack    *stack.Stack[Info]
+		ch       chan Event
+		isClosed bool
+		skip     Skipper
+		isPanic  bool
+		timeout  time.Duration
+		deadline time.Time
 	}
 	// moduleWrapper wraps Module to track load status.
 	moduleWrapper struct {
 		Module
-		loaded bool
-		deps   []Info
+		loaded  bool
+		runtime time.Duration
+		deps    []Info
 	}
 )
 
+// Blame returns the Module responsible.
+func (e Event) Blame() Info {
+	return e.info
+}
+
+// Err returns nil if a Module was loaded or an error if a problem occurred.
+func (e Event) Err() error {
+	return e.err
+}
+
 // NewContext creates a new Context using Mortar.
-func NewContext(mort Mortar, opt ...Option) *Context {
+func NewContext(ctx context.Context, mort Mortar, opt ...Option) (*Context, context.CancelFunc) {
 	c := new(Context)
-	c.Context = context.TODO()
 	c.mort = mort
 	c.modules = make(map[string]*moduleWrapper)
 	c.stack = new(stack.Stack[Info])
+	c.ch = make(chan Event, 1)
+	c.skip = DefaultSkipper
 	for _, o := range opt {
 		o(c)
 	}
-	return c
+	var cancel context.CancelFunc
+	if c.timeout > 0 {
+		c.Context, cancel = context.WithTimeout(ctx, c.timeout)
+	} else if !c.deadline.IsZero() {
+		c.Context, cancel = context.WithDeadline(ctx, c.deadline)
+	} else {
+		c.Context, cancel = context.WithCancel(ctx)
+	}
+	return c, func() {
+		cancel()
+		if !c.isClosed {
+			close(c.ch)
+		}
+		c.isClosed = true
+	}
 }
 
-// Hook injects service dependencies into Context.
-func (c *Context) Hook(s ...Stone) error {
-	return c.mort.Hook(s...)
-}
-
-// Graph returns the Module dependency graph.
-func (c *Context) Graph() (deps []Dependency) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	for _, mod := range c.modules {
-		for _, dep := range mod.deps {
-			deps = append(deps, Dependency{From: mod.Info(), To: dep})
+// Register registers a Module to the Context.
+func (c *Context) Register(mod ...Module) (err error) {
+	if err = c.Err(); err != nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, m := range mod {
+		info := m.Info()
+		if m == nil {
+			err = ErrInvalidModule
+			if c.isPanic {
+				panic(err)
+			}
+			c.ch <- Event{info: info, err: err}
+			return
+		}
+		if _, dup := c.modules[info.String()]; dup {
+			err = fmt.Errorf("%w %s", ErrDuplicateModule, info.String())
+			if c.isPanic {
+				panic(err)
+			}
+			c.ch <- Event{info: info, err: err}
+			return
+		}
+		c.modules[info.String()] = &moduleWrapper{
+			Module: m,
 		}
 	}
 	return
 }
 
-// SetContext sets the internal context.Context.
-func (c *Context) SetContext(ctx context.Context) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.Context = ctx
-}
-
-// Completed returns whether all Module(s) have been loaded.
-func (c *Context) Completed() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	for _, mod := range c.modules {
-		if mod.loaded == false {
-			return false
-		}
+// Hook injects service dependencies into Context.
+func (c *Context) Hook(s ...Stone) error {
+	if err := c.Err(); err != nil {
+		return err
 	}
-	return true
+	return c.mort.Hook(s...)
 }
 
 // Load loads Module(s).
 func (c *Context) Load(info ...Info) (err error) {
+	if err = c.Err(); err != nil {
+		return
+	}
 	for _, i := range info {
 		c.mu.RLock()
 		mod, exist := c.modules[i.String()]
@@ -106,24 +155,21 @@ func (c *Context) Load(info ...Info) (err error) {
 			if c.stack.Size() > 0 {
 				err = ErrMissingDependency
 			}
-			if c.logger != nil {
-				c.logger.Error("failed to load", i, err)
-			}
+			c.ch <- Event{info: i, err: err}
 			return
+		}
+		if c.skip(i) {
+			continue
 		}
 		if !mod.loaded {
 			if current, ok := c.stack.Peek(); ok && current.String() == i.String() {
 				err = ErrSelfReferentialDependency
-				if c.logger != nil {
-					c.logger.Error("failed to load", i, err)
-				}
+				c.ch <- Event{info: i, err: err}
 				return
 			}
 			if c.stack.Has(i) {
 				err = ErrCircularDependency
-				if c.logger != nil {
-					c.logger.Error("failed to load", i, err)
-				}
+				c.ch <- Event{info: i, err: err}
 				return
 			}
 			c.stack.Push(i)
@@ -135,18 +181,15 @@ func (c *Context) Load(info ...Info) (err error) {
 			}
 			c.mu.Lock()
 			mod.loaded = true
+			mod.runtime = time.Since(start)
 			c.mu.Unlock()
 			for {
 				if err = c.stack.Err(); err != nil {
-					if c.logger != nil {
-						c.logger.Error("failed to load", i, err)
-					}
+					c.ch <- Event{info: i, err: err}
 					return
 				}
 				if c.stack.Size()-1 == index {
-					if c.logger != nil {
-						c.logger.Info("loaded", i, KV{Key: "runtime", Value: time.Since(start).String()})
-					}
+					c.ch <- Event{info: i, err: err}
 					break
 				}
 				if last, ok := c.stack.Pop(); ok {
@@ -158,4 +201,15 @@ func (c *Context) Load(info ...Info) (err error) {
 		}
 	}
 	return
+}
+
+// Stat returns the Load runtime for a Module.
+func (c *Context) Stat(info Info) time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	mod, ok := c.modules[info.String()]
+	if !ok {
+		return 0
+	}
+	return mod.runtime
 }

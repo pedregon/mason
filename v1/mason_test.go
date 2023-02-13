@@ -19,11 +19,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-package mason
+package mason_test
 
 import (
 	"context"
 	"errors"
+	"github.com/pedregon/mason/v1"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/fx/fxtest"
@@ -35,37 +36,37 @@ import (
 )
 
 var (
-	_ Mortar = (*nopMortar)(nil)
-	_ Module = (*module)(nil)
+	_ mason.Mortar = (*nopMortar)(nil)
+	_ mason.Module = (*module)(nil)
 )
 
 type (
 	nopMortar struct {
 		mu       sync.Mutex
-		services []Stone
+		services []mason.Stone
 	}
 	module struct {
 		name     string
 		version  string
-		deps     []Info
-		services []Stone
+		deps     []mason.Info
+		services []mason.Stone
 	}
 )
 
-func (mort *nopMortar) Hook(s ...Stone) error {
+func (mort *nopMortar) Hook(s ...mason.Stone) error {
 	mort.mu.Lock()
 	defer mort.mu.Unlock()
 	mort.services = append(mort.services, s)
 	return nil
 }
 
-func (mod module) Info() (info Info) {
+func (mod module) Info() (info mason.Info) {
 	info.Name = mod.name
 	info.Version = mod.version
 	return
 }
 
-func (mod module) Provision(c *Context) (err error) {
+func (mod module) Provision(c *mason.Context) (err error) {
 	if err = c.Load(mod.deps...); err != nil {
 		return
 	}
@@ -77,37 +78,38 @@ func (mod module) Provision(c *Context) (err error) {
 	return
 }
 
-type (
-	testLogger struct {
-		logger *testing.T
+func logger(t *testing.T) mason.Observer {
+	return func(c *mason.Context, ch <-chan mason.Event) {
+		go func() {
+			for e := range ch {
+				info := e.Blame()
+				if err := e.Err(); err != nil {
+					t.Logf("[Modules] ERROR msg='failed to load' info=%s err='%s'", info, err.Error())
+				} else {
+					t.Logf("[Modules] INFO msg='loaded' module=%s, runtime=%s", info, c.Stat(info))
+				}
+			}
+		}()
 	}
-)
-
-func (t testLogger) Info(msg string, info Info, kv ...KV) {
-	format := "[Modules] INFO msg=%s module=%s"
-	for _, pair := range kv {
-		format += " " + pair.String()
-	}
-	t.logger.Logf(format, msg, info)
-}
-
-func (t testLogger) Error(msg string, info Info, err error) {
-	t.logger.Logf("[Modules] ERROR msg=%s info=%s err='%s'", msg, info, err.Error())
 }
 
 func TestModules(t *testing.T) {
-	mort := new(nopMortar)
+	// discover
 	baz := &module{name: "baz", version: "1.0.0"}
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(mort, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	c.SetContext(ctx)
+	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
+		mason.WatchOption(logger(t)))
 	var err error
+	// register
+	if err = c.Register(foo, bar, baz); err != nil {
+		t.Fatal(err)
+	}
+	// hook
 	go func() {
-		err = c.Load(bar.Info(), foo.Info(), baz.Info())
+		err = mason.Load(c)
 		cancel()
 	}()
 	<-c.Done()
@@ -117,69 +119,77 @@ func TestModules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.Completed() {
+	if len(mason.Loaded(c)) != mason.Len(c) {
 		t.FailNow()
 	}
 	var relationships []string
-	for _, rel := range c.Graph() {
+	for _, rel := range mason.Graph(c) {
 		relationships = append(relationships, rel.String())
 	}
 	t.Logf("[Modules] INFO msg=completed graph=[%s]", strings.Join(relationships, ", "))
 }
 
 func TestSelfReferentialDependency(t *testing.T) {
-	mort := new(nopMortar)
+	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, foo.Info())
-	c := NewContext(mort, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	c.SetContext(ctx)
+	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
+		mason.WatchOption(logger(t)))
 	var err error
+	// register
+	if err = c.Register(foo); err != nil {
+		t.Fatal(err)
+	}
+	// hook
 	go func() {
-		err = c.Load(foo.Info())
+		err = mason.Load(c)
 		cancel()
 	}()
 	<-c.Done()
 	if errors.Is(c.Err(), context.DeadlineExceeded) {
 		t.Fatal(c.Err())
 	}
-	if !errors.Is(err, ErrSelfReferentialDependency) {
+	if !errors.Is(err, mason.ErrSelfReferentialDependency) {
 		t.Fatal(err)
 	}
 }
 
 func TestCircularDependency(t *testing.T) {
-	mort := new(nopMortar)
+	// discover
 	baz := &module{name: "baz", version: "1.0.0"}
-	baz.deps = append(baz.deps, Info{Name: "foo", Version: "1.0.0"})
+	baz.deps = append(baz.deps, mason.Info{Name: "foo", Version: "1.0.0"})
 	bar := &module{name: "bar", version: "1.0.0"}
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(mort, ModuleOption(foo, bar, baz), LoggerOption(testLogger{logger: t}))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	c.SetContext(ctx)
+	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
+		mason.WatchOption(logger(t)))
 	var err error
+	// register
+	if err = c.Register(foo, bar, baz); err != nil {
+		t.Fatal(err)
+	}
+	// hook
 	go func() {
-		err = c.Load(bar.Info(), foo.Info(), baz.Info())
+		err = mason.Load(c)
 		cancel()
 	}()
 	<-c.Done()
 	if errors.Is(c.Err(), context.DeadlineExceeded) {
 		t.Fatal(c.Err())
 	}
-	if !errors.Is(err, ErrCircularDependency) {
+	if !errors.Is(err, mason.ErrCircularDependency) {
 		t.Fatal(err)
 	}
 }
 
 func TestInvalid(t *testing.T) {
-	mort := new(nopMortar)
+	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
-	c := NewContext(mort, LoggerOption(testLogger{logger: t}))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	c.SetContext(ctx)
+	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
+		mason.WatchOption(logger(t)))
 	var err error
+	// hook
 	go func() {
 		err = c.Load(foo.Info())
 		cancel()
@@ -188,13 +198,13 @@ func TestInvalid(t *testing.T) {
 	if errors.Is(c.Err(), context.DeadlineExceeded) {
 		t.Fatal(c.Err())
 	}
-	if !errors.Is(err, ErrInvalidModule) {
+	if !errors.Is(err, mason.ErrInvalidModule) {
 		t.Fatal(err)
 	}
 }
 
 var (
-	_ Mortar = (*fxMortar)(nil)
+	_ mason.Mortar = (*fxMortar)(nil)
 )
 
 type (
@@ -204,7 +214,7 @@ type (
 	}
 )
 
-func (mort *fxMortar) Hook(s ...Stone) error {
+func (mort *fxMortar) Hook(s ...mason.Stone) error {
 	mort.mu.Lock()
 	defer mort.mu.Unlock()
 	for _, e := range s {
@@ -227,9 +237,9 @@ func TestMortar(t *testing.T) {
 			t.FailNow()
 		}
 	}()
-	mort := new(fxMortar)
+	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
-	info := foo.Info()
+	mort := &fxMortar{}
 	var err error
 	if err = mort.Hook(
 		fx.Decorate(
@@ -238,7 +248,7 @@ func TestMortar(t *testing.T) {
 					return true
 				},
 				fx.OnStart(func(_ context.Context, b bool) error {
-					t.Logf("[App] INFO component=%s fx=%t", info, b)
+					t.Logf("[App] INFO component=%s fx=%t", foo.Info(), b)
 					if !b {
 						return errors.New("fx failed")
 					}
@@ -249,20 +259,12 @@ func TestMortar(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	c := NewContext(mort, ModuleOption(foo), LoggerOption(testLogger{logger: t}))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	c.SetContext(ctx)
-	go func() {
-		err = c.Load(info)
-		cancel()
-	}()
-	<-c.Done()
-	if errors.Is(c.Err(), context.DeadlineExceeded) {
-		t.Fatal(c.Err())
-	}
-	if err != nil {
+	c, cancel := mason.NewContext(context.TODO(), mort, mason.TimeoutOption(time.Second), mason.WatchOption(logger(t)))
+	// register
+	if err = c.Register(foo); err != nil {
 		t.Fatal(err)
 	}
+	// hook
 	if err = c.Hook(
 		fx.WithLogger(func() fxevent.Logger { return fxtest.NewTestLogger(t) }),
 		fx.Provide(
@@ -272,6 +274,18 @@ func TestMortar(t *testing.T) {
 		),
 		fx.Invoke(func(bool) {}),
 	); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		err = mason.Load(c)
+		cancel()
+		cancel()
+	}()
+	<-c.Done()
+	if errors.Is(c.Err(), context.DeadlineExceeded) {
+		t.Fatal(c.Err())
+	}
+	if err != nil {
 		t.Fatal(err)
 	}
 	app := mort.Trowel()
@@ -284,13 +298,17 @@ func TestMortar(t *testing.T) {
 }
 
 func TestMissingDependency(t *testing.T) {
-	mort := new(nopMortar)
+	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
-	foo.deps = append(foo.deps, Info{Name: "bar", Version: "1.0.0"})
-	c := NewContext(mort, LoggerOption(testLogger{logger: t}), ModuleOption(foo))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	c.SetContext(ctx)
+	foo.deps = append(foo.deps, mason.Info{Name: "bar", Version: "1.0.0"})
+	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
+		mason.WatchOption(logger(t)))
 	var err error
+	// register
+	if err = c.Register(foo); err != nil {
+		t.Fatal(err)
+	}
+	// hook
 	go func() {
 		err = c.Load(foo.Info())
 		cancel()
@@ -299,24 +317,40 @@ func TestMissingDependency(t *testing.T) {
 	if errors.Is(c.Err(), context.DeadlineExceeded) {
 		t.Fatal(c.Err())
 	}
-	if !errors.Is(err, ErrMissingDependency) {
+	if !errors.Is(err, mason.ErrMissingDependency) {
 		t.Fatal(err)
 	}
 }
 
-func TestNilLogger(t *testing.T) {
-	mort := new(nopMortar)
-	baz := &module{name: "baz", version: "1.0.0"}
-	bar := &module{name: "bar", version: "1.0.0"}
-	bar.deps = append(bar.deps, baz.Info())
+func TestDuplicateModule(t *testing.T) {
+	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
-	foo.deps = append(foo.deps, bar.Info())
-	c := NewContext(mort, ModuleOption(foo, bar, baz))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	c.SetContext(ctx)
+	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.WatchOption(logger(t)))
+	defer cancel()
+	// register
+	err := c.Register(foo, foo)
+	if !errors.Is(err, mason.ErrDuplicateModule) {
+		t.FailNow()
+	}
+}
+
+func skipper(_ mason.Info) bool {
+	return true
+}
+
+func TestSkipper(t *testing.T) {
+	// discover
+	foo := &module{name: "foo", version: "1.0.0"}
+	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
+		mason.SkipOption(skipper))
 	var err error
+	// register
+	if err = c.Register(foo); err != nil {
+		t.Fatal(err)
+	}
+	// hook
 	go func() {
-		err = c.Load(bar.Info(), foo.Info(), baz.Info())
+		err = mason.Load(c)
 		cancel()
 	}()
 	<-c.Done()
@@ -326,12 +360,7 @@ func TestNilLogger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.Completed() {
+	if len(mason.Loaded(c)) > 0 {
 		t.FailNow()
 	}
-	var relationships []string
-	for _, rel := range c.Graph() {
-		relationships = append(relationships, rel.String())
-	}
-	t.Logf("[Modules] INFO msg=completed graph=[%s]", strings.Join(relationships, ", "))
 }

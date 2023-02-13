@@ -30,6 +30,7 @@ var (
 	ErrSelfReferentialDependency error = errors.New("self-referential module dependency")
 	ErrCircularDependency        error = errors.New("circular module dependency")
 	ErrMissingDependency         error = errors.New("missing module dependency")
+	ErrDuplicateModule           error = errors.New("register called twice for module")
 )
 
 type (
@@ -60,4 +61,49 @@ func (i Info) String() string {
 // String implements fmt.Stringer.
 func (d Dependency) String() string {
 	return d.To.String() + " <= " + d.From.String()
+}
+
+// Graph returns the Module dependency graph for a Context.
+func Graph(c *Context) (deps []Dependency) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, mod := range c.modules {
+		for _, dep := range mod.deps {
+			deps = append(deps, Dependency{From: mod.Info(), To: dep})
+		}
+	}
+	return
+}
+
+// Load loads all Module(s) from a Context.
+func Load(c *Context) error {
+	c.mu.RLock()
+	var info []Info
+	for _, mod := range c.modules {
+		info = append(info, mod.Info())
+	}
+	c.mu.RUnlock()
+	return c.Load(info...)
+}
+
+// Loaded returns all Module(s) from a Context that have been loaded.
+func Loaded(c *Context) (info []Info) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, mod := range c.modules {
+		if mod.loaded {
+			info = append(info, mod.Info())
+		}
+	}
+	return
+}
+
+// Len returns the number of Module(s) registered in a Context.
+func Len(c *Context) (i int) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for range c.modules {
+		i++
+	}
+	return
 }

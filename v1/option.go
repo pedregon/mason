@@ -21,27 +21,64 @@
 
 package mason
 
+import (
+	"context"
+	"time"
+)
+
+var (
+	// DefaultSkipper skips no Module(s).
+	DefaultSkipper Skipper = func(_ Info) bool {
+		return false
+	}
+)
+
 type (
 	// Option is a functional option for NewContext.
 	// https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 	Option func(*Context)
+	// Skipper is a callback function that decides whether to skip a Module.
+	Skipper func(Info) bool
+	// Observer is a callback function that observes a read-only Event channel.
+	Observer func(*Context, <-chan Event)
 )
 
-// ModuleOption registers Module(s) that may be loaded.
-func ModuleOption(mod ...Module) Option {
+// PanicOption panics if a Module is registered twice.
+func PanicOption(c *Context) {
+	c.isPanic = true
+}
+
+// SkipOption skips a Module on Load.
+func SkipOption(skip Skipper) Option {
 	return func(c *Context) {
-		for _, m := range mod {
-			info := m.Info()
-			w := new(moduleWrapper)
-			w.Module = m
-			c.modules[info.String()] = w
-		}
+		c.skip = skip
 	}
 }
 
-// LoggerOption overwrites the default Logger.
-func LoggerOption(logger Logger) Option {
+// WatchOption watches Event(s). The Observer is protected from Module caller(s).
+func WatchOption(obs Observer) Option {
 	return func(c *Context) {
-		c.logger = logger
+		obs(c, c.ch)
+	}
+}
+
+// TimeoutOption is equivalent to context.WithTimeout.
+func TimeoutOption(timeout time.Duration) Option {
+	return func(c *Context) {
+		c.timeout = timeout
+	}
+}
+
+// DeadlineOption is equivalent to context.WithDeadline.
+func DeadlineOption(d time.Time) Option {
+	return func(c *Context) {
+		c.deadline = d
+	}
+}
+
+// ValueOption is equivalent to context.WithValue.
+func ValueOption(key string, val any) Option {
+	return func(c *Context) {
+		c.Context = context.WithValue(c, key, val)
 	}
 }
