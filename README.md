@@ -1,7 +1,7 @@
 # Mason
 [![test](https://github.com/pedregon/mason/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/pedregon/mason/actions/workflows/test.yml)
 
-![pyramids](https://www.lol-smurfs.com/blog/wp-content/uploads/2017/01/21.jpg)
+<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/All_Gizah_Pyramids.jpg/580px-All_Gizah_Pyramids.jpg" width="350" height="250" />
 
 Mason is a [plugin](https://eli.thegreenplace.net/2021/plugins-in-go/) framework for statically compiled Go.
 Plugin systems are *messy*.
