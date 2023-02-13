@@ -78,9 +78,11 @@ func (mod module) Provision(c *mason.Context) (err error) {
 	return
 }
 
-func logger(t *testing.T) mason.Observer {
+func logger(wg *sync.WaitGroup, t *testing.T) mason.Observer {
 	return func(c *mason.Context, ch <-chan mason.Event) {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			for e := range ch {
 				info := e.Blame()
 				if err := e.Err(); err != nil {
@@ -100,8 +102,9 @@ func TestModules(t *testing.T) {
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
+	wg := sync.WaitGroup{}
 	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(logger(t)))
+		mason.WatchOption(logger(&wg, t)))
 	var err error
 	// register
 	if err = c.Register(foo, bar, baz); err != nil {
@@ -127,14 +130,16 @@ func TestModules(t *testing.T) {
 		relationships = append(relationships, rel.String())
 	}
 	t.Logf("[Modules] INFO msg=completed graph=[%s]", strings.Join(relationships, ", "))
+	wg.Wait()
 }
 
 func TestSelfReferentialDependency(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, foo.Info())
+	wg := sync.WaitGroup{}
 	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(logger(t)))
+		mason.WatchOption(logger(&wg, t)))
 	var err error
 	// register
 	if err = c.Register(foo); err != nil {
@@ -152,6 +157,7 @@ func TestSelfReferentialDependency(t *testing.T) {
 	if !errors.Is(err, mason.ErrSelfReferentialDependency) {
 		t.Fatal(err)
 	}
+	wg.Wait()
 }
 
 func TestCircularDependency(t *testing.T) {
@@ -162,8 +168,9 @@ func TestCircularDependency(t *testing.T) {
 	bar.deps = append(bar.deps, baz.Info())
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, bar.Info())
+	wg := sync.WaitGroup{}
 	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(logger(t)))
+		mason.WatchOption(logger(&wg, t)))
 	var err error
 	// register
 	if err = c.Register(foo, bar, baz); err != nil {
@@ -181,13 +188,15 @@ func TestCircularDependency(t *testing.T) {
 	if !errors.Is(err, mason.ErrCircularDependency) {
 		t.Fatal(err)
 	}
+	wg.Wait()
 }
 
 func TestInvalid(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
+	wg := sync.WaitGroup{}
 	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(logger(t)))
+		mason.WatchOption(logger(&wg, t)))
 	var err error
 	// hook
 	go func() {
@@ -201,6 +210,7 @@ func TestInvalid(t *testing.T) {
 	if !errors.Is(err, mason.ErrInvalidModule) {
 		t.Fatal(err)
 	}
+	wg.Wait()
 }
 
 var (
@@ -259,7 +269,9 @@ func TestMortar(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	c, cancel := mason.NewContext(context.TODO(), mort, mason.TimeoutOption(time.Second), mason.WatchOption(logger(t)))
+	wg := sync.WaitGroup{}
+	c, cancel := mason.NewContext(context.TODO(), mort, mason.TimeoutOption(time.Second),
+		mason.WatchOption(logger(&wg, t)))
 	// register
 	if err = c.Register(foo); err != nil {
 		t.Fatal(err)
@@ -288,6 +300,7 @@ func TestMortar(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	wg.Wait()
 	app := mort.Trowel()
 	if err = app.Start(context.TODO()); err != nil {
 		t.Fatal(err)
@@ -301,8 +314,9 @@ func TestMissingDependency(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
 	foo.deps = append(foo.deps, mason.Info{Name: "bar", Version: "1.0.0"})
+	wg := sync.WaitGroup{}
 	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.TimeoutOption(time.Second),
-		mason.WatchOption(logger(t)))
+		mason.WatchOption(logger(&wg, t)))
 	var err error
 	// register
 	if err = c.Register(foo); err != nil {
@@ -320,18 +334,21 @@ func TestMissingDependency(t *testing.T) {
 	if !errors.Is(err, mason.ErrMissingDependency) {
 		t.Fatal(err)
 	}
+	wg.Wait()
 }
 
 func TestDuplicateModule(t *testing.T) {
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
-	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.WatchOption(logger(t)))
-	defer cancel()
+	wg := sync.WaitGroup{}
+	c, cancel := mason.NewContext(context.TODO(), &nopMortar{}, mason.WatchOption(logger(&wg, t)))
 	// register
 	err := c.Register(foo, foo)
 	if !errors.Is(err, mason.ErrDuplicateModule) {
 		t.FailNow()
 	}
+	cancel()
+	wg.Wait()
 }
 
 func skipper(_ mason.Info) bool {
