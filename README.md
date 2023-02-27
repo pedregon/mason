@@ -31,7 +31,8 @@ and network-based solutions. Mason works by constructing
 [`Mortar`](https://github.com/pedregon/mason/blob/main/v2/mason.go) on 
 [`Stone`](https://github.com/pedregon/mason/blob/main/v2/mason.go) from 
 [`Module(s)`](https://github.com/pedregon/mason/blob/main/v1/module.go). On `Module` load, `Scaffold` creates a 
-[`Context`](https://github.com/pedregon/mason/blob/main/v1/context.go). `Module(s)` are hooked by the `Context` and
+[`Context`](https://github.com/pedregon/mason/blob/main/v1/context.go) for hooking API logic. 
+`Module(s)` are hooked by the `Context` and
 provide `Stone` as building blocks that extend the API. Mason takes care of the plugin dependency plumbing and 
 empowers custom discovery, registration, and hooking. `Mortar` is the underlying glue.
 Initially, [`github.com/uber/fx`](https://uber-go.github.io/fx/) was first-class
