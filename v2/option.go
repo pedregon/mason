@@ -1,4 +1,4 @@
-// Copyright (c) 2022 miche.io
+// Copyright (c) 2023 pedregon
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of
 // this software and associated documentation files (the "Software"), to deal in
@@ -29,25 +29,23 @@ var (
 )
 
 type (
-	// Option is a functional option for NewContext.
+	// Option is a functional option for Scaffold(ing).
 	// https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
-	Option func(*Context)
-	// Skipper is a callback function that decides whether to skip a Module.
+	Option func(*Scaffold)
+	// Skipper is a callback function that decides whether to skip a Module by Info.
 	Skipper func(Info) bool
-	// Observer is a callback function that observes Event(s).
-	Observer func(*Context, Event)
 )
 
-// SkipOption skips a Module on Load.
+// SkipOption skips a Module on Scaffold.Load.
 func SkipOption(skip Skipper) Option {
-	return func(c *Context) {
-		c.skip = skip
+	return func(s *Scaffold) {
+		s.skip = skip
 	}
 }
 
-// ObserveOption observers the Context. The Observer is protected from Module caller(s).
-func ObserveOption(o Observer) Option {
-	return func(c *Context) {
-		c.callbacks = append(c.callbacks, o)
+// OnLoad enables an Event subscription for observation.
+func OnLoad(ch chan<- Event) Option {
+	return func(s *Scaffold) {
+		s.ch = ch
 	}
 }

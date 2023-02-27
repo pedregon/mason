@@ -1,4 +1,4 @@
-// Copyright (c) 2022 miche.io
+// Copyright (c) 2023 pedregon
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of
 // this software and associated documentation files (the "Software"), to deal in
@@ -23,6 +23,8 @@ package mason
 
 import (
 	"errors"
+	"sync"
+	"time"
 )
 
 var (
@@ -30,7 +32,6 @@ var (
 	ErrSelfReferentialDependency error = errors.New("self-referential module dependency")
 	ErrCircularDependency        error = errors.New("circular module dependency")
 	ErrMissingDependency         error = errors.New("missing module dependency")
-	ErrDuplicateModule           error = errors.New("register called twice for module")
 )
 
 type (
@@ -46,12 +47,37 @@ type (
 		// Provision initializes.
 		Provision(c *Context) error
 	}
+	// moduleWrapper wraps Module to track status.
+	moduleWrapper struct {
+		Module
+		loaded  bool
+		runtime time.Duration
+		depsMu  sync.RWMutex
+		deps    []Info
+	}
 	// Dependency is a Module dependency relationship.
 	Dependency struct {
 		From Info
 		To   Info
 	}
 )
+
+// dependsOn safely appends Module(s) as dependencies.
+func (w *moduleWrapper) dependsOn(info ...Info) {
+	w.depsMu.Lock()
+	defer w.depsMu.Unlock()
+	w.deps = append(w.deps, info...)
+}
+
+// listDeps safely lists Module dependencies.
+func (w *moduleWrapper) listDeps() (deps []Dependency) {
+	w.depsMu.RLock()
+	defer w.depsMu.RUnlock()
+	for _, dep := range w.deps {
+		deps = append(deps, Dependency{From: w.Info(), To: dep})
+	}
+	return
+}
 
 // String implements fmt.Stringer.
 func (i Info) String() string {
@@ -61,49 +87,4 @@ func (i Info) String() string {
 // String implements fmt.Stringer.
 func (d Dependency) String() string {
 	return d.To.String() + " <= " + d.From.String()
-}
-
-// Graph returns the Module dependency graph for a Context.
-func Graph(c *Context) (deps []Dependency) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	for _, mod := range c.modules {
-		for _, dep := range mod.deps {
-			deps = append(deps, Dependency{From: mod.Info(), To: dep})
-		}
-	}
-	return
-}
-
-// Load loads all Module(s) from a Context.
-func Load(c *Context) error {
-	c.mu.RLock()
-	var info []Info
-	for _, mod := range c.modules {
-		info = append(info, mod.Info())
-	}
-	c.mu.RUnlock()
-	return c.Load(info...)
-}
-
-// Loaded returns all Module(s) from a Context that have been loaded.
-func Loaded(c *Context) (info []Info) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	for _, mod := range c.modules {
-		if mod.loaded {
-			info = append(info, mod.Info())
-		}
-	}
-	return
-}
-
-// Len returns the number of Module(s) registered in a Context.
-func Len(c *Context) (i int) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	for range c.modules {
-		i++
-	}
-	return
 }

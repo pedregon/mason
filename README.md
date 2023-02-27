@@ -1,15 +1,14 @@
 # Mason
 [![test](https://github.com/pedregon/mason/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/pedregon/mason/actions/workflows/test.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/pedregon/mason.svg)](https://pkg.go.dev/github.com/pedregon/mason)
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/All_Gizah_Pyramids.jpg/580px-All_Gizah_Pyramids.jpg" width="350" height="250" />
 
 Mason is a [plugin](https://eli.thegreenplace.net/2021/plugins-in-go/) framework for statically compiled Go.
 Plugin systems are *messy*.
 [Inversion of control](https://www.henrydu.com/2022/01/09/golang-inversion-of-control/) is *messy*.
-This Go module was named after stone masons because it provides a simplistic API for constructing application pyramids.
-There may be better examples in a future update, but for now check out
-[TestMortar](https://github.com/pedregon/mason/blob/main/v1/mason_test.go) for an
-[`github.com/uber/fx`](https://uber-go.github.io/fx/) implementation.
+This Go module was named after stone masons because it aims to provide a simplistic API for constructing
+application pyramids.
 ## Installation
 ```
 go get -u github.com/pedregon/mason
@@ -20,22 +19,28 @@ The recommended design pattern for plugin registration is to mimic
 package imports as the plugin discovery mechanism.
 [Build tags](https://www.digitalocean.com/community/tutorials/customizing-go-binaries-with-build-tags)
 may also be used for compile-time inclusivity.
+## Examples
+There may be better examples in a future revision, but for now check out 
+[TestModules](https://github.com/pedregon/mason/raw/main/v2/mason_test.go) or
+[TestMortar](https://github.com/pedregon/mason/raw/main/v2/mason_test.go).
 ## Rational
-Mason was developed to offer an alternative to the standard library [`plugin`](https://pkg.go.dev/plugin),
+Mason was developed to offer an alternative to the Go standard library, [`plugin`](https://pkg.go.dev/plugin),
 RPC solutions such as [`github.com/hashicorp/go-plugin`](https://github.com/hashicorp/go-plugin),
-and other network-based solutions. Mason revolves around a
-[`Context`](https://github.com/pedregon/mason/blob/main/v1/context.go) using
-[`Mortar`](https://github.com/pedregon/mason/blob/main/v1/mason.go) that glues
-[`Module`](https://github.com/pedregon/mason/blob/main/v1/module.go) extending logic to application extensible logic. 
-*Loaded* `Module(s)` provide [`Stone`](https://github.com/pedregon/mason/blob/main/v1/mason.go) building blocks that are
-hooked by the `Context`. Mason takes care of the plugin dependency plumbing and empowers custom discovery,
-registration, and hooking. Initially, [`github.com/uber/fx`](https://uber-go.github.io/fx/) was first-class
+and network-based solutions. Mason works by constructing
+[`Scaffold(ing)`](https://github.com/pedregon/mason/blob/main/v2/scaffold.go) to apply
+[`Mortar`](https://github.com/pedregon/mason/blob/main/v2/mason.go) on 
+[`Stone`](https://github.com/pedregon/mason/blob/main/v2/mason.go) from 
+[`Module(s)`](https://github.com/pedregon/mason/blob/main/v1/module.go). On `Module` load, `Scaffold` creates a 
+[`Context`](https://github.com/pedregon/mason/blob/main/v1/context.go). `Module(s)` are hooked by the `Context` and
+provide `Stone` as building blocks that extend the API. Mason takes care of the plugin dependency plumbing and 
+empowers custom discovery, registration, and hooking. `Mortar` is the underlying glue.
+Initially, [`github.com/uber/fx`](https://uber-go.github.io/fx/) was first-class
 supported as the inversion of control mechanism because it was arguably the best documented and easiest to use
 (no code generation or type inferring) dependency injection framework, but it has since been decided that
 a) users do not want to be forcibly dependent on an external library and
 b) some consider dependency injection systems to be an unnecessary anti-pattern. Therefore, to remain idiomatic,
 `Mortar` inversion of control via `Stone` hooking was abstracted. `Context`, itself, even implements the `Mortar` 
-interface to foster some wondrous chain of responsibility. Mason by no means claims to be a perfect solution, 
+interface to foster chain of responsibility. Mason by no means claims to be a perfect solution, 
 and is open to feedback!
 ## Contributing
 This project is open to [pull requests](https://github.com/pedregon/mason/pulls)!

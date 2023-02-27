@@ -1,14 +1,58 @@
+# See https://golangci-lint.run/usage/false-positives for exclusion help
+
+run:
+  tests: false
+  modules-download-mode: readonly
+
+output:
+  sort-results: true
+
 linters:
   disable-all: true
   enable:
-    - errcheck
-    - govet
-    - staticcheck
-    - unused
-    - ineffassign
-    - typecheck
+    - bidichk
+    - bodyclose
+    - contextcheck
+    - depguard
+    - dupword
+    - errchkjson
+    - errname
+    - execinquery
+    - exportloopref
+    - gocognit
+    - goconst
+    - gocyclo
     - godot
     - gofmt
-    - bodyclose
-    - exportloopref
+    - gomodguard
     - gosec
+    - importas
+    - lll
+    - misspell
+    - nilerr
+    - nilnil
+    - noctx
+    - nosprintfhostport
+    - reassign
+    - tenv
+    - testpackage
+    - tparallel
+    - unparam
+    - usestdlibvars
+    - whitespace
+    - unused
+    - godox
+    - interfacebloat
+    - makezero
+
+issues:
+  exclude-rules:
+    - linters:
+        - unused
+      text: 'Scaffold\).join'
+    - path: v2/mason.go
+      linters:
+        - lll
+    - linters:
+        - gocognit
+      text: 'Context\).Load'
