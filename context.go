@@ -23,7 +23,7 @@ package mason
 
 import (
 	"context"
-	"github.com/pedregon/mason/internal/stack"
+	"github.com/pedregon/mason/v2/internal/stack"
 	"time"
 )
 

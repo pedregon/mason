@@ -11,7 +11,7 @@ This Go module was named after stone masons because it aims to provide a simplis
 application pyramids.
 ## Installation
 ```
-go get -u github.com/pedregon/mason
+go get -u github.com/pedregon/mason/v2
 ```
 ## Examples
 There may be better examples in a future revision, but for now check out

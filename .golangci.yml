@@ -50,7 +50,7 @@ issues:
     - linters:
         - unused
       text: 'Scaffold\).join'
-    - path: v2/mason.go
+    - path: mason.go
       linters:
         - lll
     - linters:
