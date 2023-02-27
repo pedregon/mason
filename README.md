@@ -13,16 +13,16 @@ application pyramids.
 ```
 go get -u github.com/pedregon/mason
 ```
+## Examples
+There may be better examples in a future revision, but for now check out
+[TestModules](https://github.com/pedregon/mason/raw/main/v2/mason_test.go) or
+[TestMortar](https://github.com/pedregon/mason/raw/main/v2/mason_test.go).
 ## Design Pattern
 The recommended design pattern for plugin registration is to mimic
 [`database/sql`](https://eli.thegreenplace.net/2019/design-patterns-in-gos-databasesql-package/) with anonymous
 package imports as the plugin discovery mechanism.
 [Build tags](https://www.digitalocean.com/community/tutorials/customizing-go-binaries-with-build-tags)
 may also be used for compile-time inclusivity.
-## Examples
-There may be better examples in a future revision, but for now check out 
-[TestModules](https://github.com/pedregon/mason/raw/main/v2/mason_test.go) or
-[TestMortar](https://github.com/pedregon/mason/raw/main/v2/mason_test.go).
 ## Rational
 Mason was developed to offer an alternative to the Go standard library, [`plugin`](https://pkg.go.dev/plugin),
 RPC solutions such as [`github.com/hashicorp/go-plugin`](https://github.com/hashicorp/go-plugin),
