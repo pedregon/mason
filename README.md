@@ -1,6 +1,6 @@
 # Mason
 [![test](https://github.com/pedregon/mason/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/pedregon/mason/actions/workflows/test.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/pedregon/mason.svg)](https://pkg.go.dev/github.com/pedregon/mason)
+[![Go Reference](https://pkg.go.dev/badge/github.com/pedregon/mason/v2.svg)](https://pkg.go.dev/github.com/pedregon/mason/v2)
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/All_Gizah_Pyramids.jpg/580px-All_Gizah_Pyramids.jpg" width="350" height="250" />
 
