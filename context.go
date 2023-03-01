@@ -55,7 +55,7 @@ func (c *Context) Hook(stone ...Stone) error {
 	if err := c.Err(); err != nil {
 		return err
 	}
-	return c.scaffold.hook(stone)
+	return c.scaffold.hook(stone...)
 }
 
 // Load loads Module dependencies by Info.

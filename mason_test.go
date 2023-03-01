@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"github.com/pedregon/mason/v2"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"testing"
@@ -52,7 +53,7 @@ type (
 func (mort *nopMortar) Hook(s ...mason.Stone) error {
 	mort.mu.Lock()
 	defer mort.mu.Unlock()
-	mort.services = append(mort.services, s)
+	mort.services = append(mort.services, s...)
 	return nil
 }
 
@@ -176,16 +177,16 @@ func TestCircularDependency(t *testing.T) {
 }
 
 func TestMortar(t *testing.T) {
-	//defer func() {
-	//	if err := recover(); err != nil {
-	//		t.Logf("panic occurred: %s", err)
-	//		t.Logf("stack trace: %s", debug.Stack())
-	//		t.FailNow()
-	//	}
-	//}()
+	defer func() {
+		if err := recover(); err != nil {
+			t.Logf("panic occurred: %s", err)
+			t.Logf("stack trace: %s", debug.Stack())
+			t.FailNow()
+		}
+	}()
 	// discover
 	foo := &module{name: "foo", version: "1.0.0"}
-	foo.services = append(foo.services, nil)
+	foo.services = append(foo.services, "my service")
 	// register
 	modules := []mason.Module{foo}
 	// observer
@@ -200,8 +201,16 @@ func TestMortar(t *testing.T) {
 	if err := load(ctx, cancel, scaffold, modules...); err != nil {
 		t.Error(err)
 	}
-	if len(mort.list()) != len(modules) {
+	services := mort.list()
+	if len(services) != len(modules) {
 		t.FailNow()
+	}
+	for _, svc := range services {
+		str, ok := svc.(string)
+		if !ok {
+			t.FailNow()
+		}
+		t.Log(str)
 	}
 }
 
