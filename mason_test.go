@@ -257,3 +257,30 @@ func TestSkipper(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+func TestScaffold_Append(t *testing.T) {
+	// discover
+	baz := &module{name: "baz", version: "1.0.0"}
+	bar := &module{name: "bar", version: "1.0.0"}
+	foo := &module{name: "foo", version: "1.0.0"}
+	// register
+	modulesA := []mason.Module{foo}
+	modulesB := []mason.Module{bar, baz, foo}
+	// construct
+	mort := &nopMortar{}
+	scaffoldA := mason.New(mort)
+	scaffoldB := mason.New(mort)
+	// hook
+	ctxA, cancelA := context.WithTimeout(context.TODO(), time.Second)
+	if err := load(ctxA, cancelA, scaffoldA, modulesA...); err != nil {
+		t.Error(err)
+	}
+	ctxB, cancelB := context.WithTimeout(context.TODO(), time.Second)
+	if err := load(ctxB, cancelB, scaffoldB, modulesB...); err != nil {
+		t.Error(err)
+	}
+	scaffoldA.Append(scaffoldB)
+	if mason.Len(scaffoldA) != 3 {
+		t.FailNow()
+	}
+}

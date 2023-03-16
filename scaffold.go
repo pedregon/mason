@@ -54,7 +54,6 @@ func New(mort Mortar, opt ...Option) *Scaffold {
 	s := &Scaffold{
 		mort:    mort,
 		modules: make(map[string]*moduleWrapper),
-		ch:      make(chan<- Event),
 		skip:    DefaultSkipper,
 	}
 	for _, fn := range opt {
@@ -146,18 +145,18 @@ func (s *Scaffold) publish(e Event) {
 	}
 }
 
-// join couples Scaffold(ing), thus merging registered Module stats (unused).
-func (s *Scaffold) join(scaffolding ...*Scaffold) {
+// Append couples Scaffold(ing), thus merging Module stats.
+func (s *Scaffold) Append(scaffolding ...*Scaffold) {
 	s.modulesMu.Lock()
 	defer s.modulesMu.Unlock()
-	for _, j := range scaffolding {
-		j.modulesMu.RLock()
-		for ref, mod := range j.modules {
+	for _, scaffold := range scaffolding {
+		scaffold.modulesMu.RLock()
+		for ref, mod := range scaffold.modules {
 			if w, ok := s.modules[ref]; !ok || !w.loaded {
 				s.modules[ref] = mod
 			}
 		}
-		j.modulesMu.RUnlock()
+		scaffold.modulesMu.RUnlock()
 	}
 }
 
