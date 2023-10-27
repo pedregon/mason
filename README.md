@@ -4,6 +4,8 @@
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/All_Gizah_Pyramids.jpg/580px-All_Gizah_Pyramids.jpg" width="350" height="250" />
 
+Much better version coming soon.
+
 Mason is a [plugin](https://eli.thegreenplace.net/2021/plugins-in-go/) framework for statically compiled Go.
 Plugin systems are *messy*.
 [Inversion of control](https://www.henrydu.com/2022/01/09/golang-inversion-of-control/) is *messy*.
